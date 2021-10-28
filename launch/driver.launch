@@ -1,0 +1,31 @@
+<launch>
+  <include file="$(find azure_kinect_ros_driver)/launch/driver.launch">
+    <arg name="depth_enabled"           value="true" />
+    <arg name="depth_mode"              value="NFOV_UNBINNED" />  
+    <arg name="color_enabled"           value="true" />           
+    <arg name="color_format"            value="bgra" />           
+    <arg name="color_resolution"        value="1536P" />          
+    <arg name="fps"                     value="30" />              
+    <arg name="point_cloud"             value="true" />           
+    <arg name="rgb_point_cloud"         value="true" />
+    <arg name="point_cloud_in_depth_frame" value="false" />
+    <arg name="required"                value="false" />         
+    <arg name="sensor_sn"               value="" />              
+    <arg name="recording_file"          value="" />               
+    <arg name="recording_loop_enabled"  value="false" />          
+    <arg name="body_tracking_enabled"           value="false" />  
+    <arg name="body_tracking_smoothing_factor"  value="0.0" />    
+    <arg name="rescale_ir_to_mono8"  value="false" />    
+    <arg name="ir_mono8_scaling_factor"  value="1.0" />    
+    <arg name="imu_rate_target" value="0"/>                       
+    <arg name="wired_sync_mode" value="0"/>                       
+    <arg name="subordinate_delay_off_master_usec" value="0"/>     
+  </include>
+
+	<node
+    pkg="kinect_handler"
+    type="scripts/img_sub.py"
+    name="img_sub"
+    output="screen"
+  />
+</launch> 

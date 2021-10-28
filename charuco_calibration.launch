@@ -1,0 +1,24 @@
+<launch>
+    <node name="img_sub_cam_1" pkg="kinect_handler" type="img_sub.py" output="screen" >
+        <param name="node_name" type="str" value="kinect_1_sub_py" />
+        <param name="cam_name" type="str" value="cam_1" />
+        <param name="mode_name" type="str" value="/rgb" />
+        <param name="calibrated" type="bool" value="True" />
+        <param name="sub_name" type="str" value="/cam_1/rgb/image_rect_color" />
+        <param name="cam_info" type="str" value="/cam_1/rgb/camera_info" />
+        <param name="pub_name" type="str" value="/cam_1/rgb/image_rect_color/charuco" />
+        <param name="trans_frame_name" type="str" value="charuco" />
+    </node>
+
+    <node name="img_sub_cam_2" pkg="kinect_handler" type="img_sub.py" output="screen" >
+        <param name="node_name" type="str" value="kinect_2_sub_py" />
+        <param name="cam_name" type="str" value="cam_2" />
+        <param name="mode_name" type="str" value="/rgb" />
+        <param name="calibrated" type="bool" value="True" />
+        <param name="sub_name" type="str" value="/cam_2/rgb/image_rect_color" />
+        <param name="cam_info" type="str" value="/cam_2/rgb/camera_info" />
+        <param name="pub_name" type="str" value="/cam_2/rgb/image_rect_color/charuco" />
+        <param name="trans_frame_name" type="str" value="charuco" />
+    </node>
+
+</launch>
