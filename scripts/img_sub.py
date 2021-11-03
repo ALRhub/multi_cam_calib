@@ -9,9 +9,9 @@ from cv_bridge import CvBridge
 import cv2 
 import cv2.aruco as aruco
 import numpy as np
-import charuco_trans_py.charuco_detect as charuco_detect 
-import charuco_trans_py.transformation as transformation 
-import charuco_trans_py.utils as utils 
+import charuco_calib_py.charuco_detect as charuco_detect 
+import charuco_calib_py.transformation as transformation 
+import charuco_calib_py.utils as utils 
 
 
 class ImageReciever:
@@ -23,7 +23,7 @@ class ImageReciever:
         self.tvec = []
         self.listener = None
         self.calibrated = rospy.get_param("~calibrated")
-        self.self_calibrate  = not rospy.get_param("~calibrated")
+        self.undistort  = not rospy.get_param("~calibrated")
         self.charuco = charuco_detect.CharucoCalibration()
         self.pub = rospy.Publisher(rospy.get_param("~pub_name"), Calib, queue_size=1)
         self.sub_name = rospy.get_param("~sub_name")
@@ -42,6 +42,7 @@ class ImageReciever:
         calib_data.tvecs = params[3]
 
         self.pub.publish(calib_data)
+
         rquat = transformation.transform_to_quat(params[2])
         rvec_tuple = (rquat[0],rquat[1], rquat[2], rquat[3])
         tvec_tuple = (params[3][0],params[3][1],params[3][2])
@@ -54,21 +55,20 @@ class ImageReciever:
 
 
     def callback(self, data):
-        if not self.calibrated and len(self.images) % 10 >= 0:
-            input("Position camera:")
-        
         current_frame = self.br.imgmsg_to_cv2(data)
         bgr_frame = cv2.cvtColor(current_frame, cv2.COLOR_BGRA2BGR)
 
+        if not self.calibrated:
+            if len(self.images) % 10 >= 0:
+                input("Position camera:")
 
-        if not self.calibrated or self.images == []:
             self.images.append(bgr_frame)
-        
-        if not self.calibrated and len(self.images) >= 100:
-            print("calibrating camera")
-            self.calibrated, _, self.cam_mtx, self.dst_params, self.rvec, self.tvec, _, _ = self.charuco.charuco_calibration(self.images, self.cam_mtx, self.dst_params)
 
-        if self.calibrated: 
+            if len(self.images) >= 100:
+                print("calibrating camera")
+                self.calibrated, _, self.cam_mtx, self.dst_params, self.rvec, self.tvec, _, _ = self.charuco.charuco_calibration(self.images, self.cam_mtx, self.dst_params)
+
+        else: 
             self.rvec, self.tvec = self.charuco.charuco_calibration_ext(bgr_frame, self.cam_mtx, self.dst_params)
             self.publish_calibration([self.cam_mtx, self.dst_params, self.rvec, self.tvec])
 
@@ -79,7 +79,7 @@ class ImageReciever:
 
             self.tb.sendTransform(tvec_trans,rvec_trans, rospy.Time.now(), self.cam_name+"/camera_base", self.ref_pnt_name)
             
-            if self_calibrate: 
+            if self.undistort: 
                 h, w = bgr_frame.shape[:2]
                 newcameramtx, _ = cv2.getOptimalNewCameraMatrix(self.cam_mtx, self.dst_params, (w,h), 1, (w,h))
                 undst = cv2.undistort(bgr_frame, self.cam_mtx, self.dst_params, None, newcameramtx)
@@ -90,7 +90,6 @@ class ImageReciever:
 
 
     def receive_message(self):
-       
         self.listener = tf.TransformListener()
         rospy.Subscriber(self.cam_info, CameraInfo, self.get_cam_params)
         rospy.Subscriber(self.sub_name, Image, self.callback)

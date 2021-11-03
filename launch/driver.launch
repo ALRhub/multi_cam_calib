@@ -23,7 +23,7 @@
   </include>
 
 	<node
-    pkg="kinect_handler"
+    pkg="multi_cam_calib"
     type="scripts/img_sub.py"
     name="img_sub"
     output="screen"

@@ -1,8 +1,8 @@
 <?xml version="1.0"?>
 <package format="2">
-  <name>kinect_handler</name>
+  <name>multi_cam_calib</name>
   <version>0.0.1</version>
-  <description>The kinect_handler package</description>
+  <description>The multi_cam_calib package</description>
 
   <!-- One maintainer tag required, multiple allowed, one person per tag -->
   <!-- Example:  -->
