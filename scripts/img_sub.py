@@ -74,7 +74,7 @@ class ImageReciever:
 
             tvec_charuco_base, rvec_charuco_base = self.listener.lookupTransform(self.cam_name +"/charuco", self.cam_name+"/camera_base", rospy.Time(0))
 
-            rvec_trnas = (rvec_charuco_base[0],rvec_charuco_base[1],rvec_charuco_base[2],rvec_charuco_base[3])
+            rvec_trans = (rvec_charuco_base[0],rvec_charuco_base[1],rvec_charuco_base[2],rvec_charuco_base[3])
             tvec_trans = (tvec_charuco_base[0],tvec_charuco_base[1],tvec_charuco_base[2])
 
             self.tb.sendTransform(tvec_trans,rvec_trans, rospy.Time.now(), self.cam_name+"/camera_base", self.ref_pnt_name)
