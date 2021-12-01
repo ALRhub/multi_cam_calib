@@ -4,14 +4,14 @@
 import rospy
 import tf
 from sensor_msgs.msg import Image, CameraInfo
-from kinect_handler.msg import Calib
+from multi_cam_calib.msg import Calib
 from cv_bridge import CvBridge
 import cv2 
 import cv2.aruco as aruco
 import numpy as np
-import charuco_calib_py.charuco_detect as charuco_detect 
-import charuco_calib_py.transformation as transformation 
-import charuco_calib_py.utils as utils 
+import multi_cam_calib_py.charuco_detect as charuco_detect 
+import multi_cam_calib_py.transformation as transformation 
+import multi_cam_calib_py.utils as utils 
 
 
 class ImageReciever:
@@ -26,6 +26,8 @@ class ImageReciever:
         self.undistort  = not rospy.get_param("~calibrated")
         self.charuco = charuco_detect.CharucoCalibration()
         self.pub = rospy.Publisher(rospy.get_param("~pub_name"), Calib, queue_size=1)
+        self.ir_sub_name = rospy.get_param("~ir_sub_name")
+        self.d_sub_name = rospy.get_param("~depth_sub_name")
         self.sub_name = rospy.get_param("~sub_name")
         self.cam_name = rospy.get_param("~cam_name")
         self.cam_info = rospy.get_param("~cam_info")
@@ -35,6 +37,10 @@ class ImageReciever:
 
 
     def publish_calibration(self, params):
+        print(params[0])
+        print(params[1])
+        print(params[2])
+        print(params[3])
         calib_data = Calib()
         calib_data.mtx = params[0].flatten().tolist()
         calib_data.dist = params[1].flatten().tolist()
@@ -70,14 +76,16 @@ class ImageReciever:
 
         else: 
             self.rvec, self.tvec = self.charuco.charuco_calibration_ext(bgr_frame, self.cam_mtx, self.dst_params)
-            self.publish_calibration([self.cam_mtx, self.dst_params, self.rvec, self.tvec])
 
-            tvec_charuco_base, rvec_charuco_base = self.listener.lookupTransform(self.cam_name +"/charuco", self.cam_name+"/camera_base", rospy.Time(0))
+            if self.rvec is not None and self.tvec is not None:
+                self.publish_calibration([self.cam_mtx, self.dst_params, self.rvec, self.tvec])
 
-            rvec_trnas = (rvec_charuco_base[0],rvec_charuco_base[1],rvec_charuco_base[2],rvec_charuco_base[3])
-            tvec_trans = (tvec_charuco_base[0],tvec_charuco_base[1],tvec_charuco_base[2])
+                tvec_charuco_base, rvec_charuco_base = self.listener.lookupTransform(self.cam_name +"/charuco", self.cam_name+"/camera_base", rospy.Time(0))
 
-            self.tb.sendTransform(tvec_trans,rvec_trans, rospy.Time.now(), self.cam_name+"/camera_base", self.ref_pnt_name)
+                rvec_trans = (rvec_charuco_base[0],rvec_charuco_base[1],rvec_charuco_base[2],rvec_charuco_base[3])
+                tvec_trans = (tvec_charuco_base[0],tvec_charuco_base[1],tvec_charuco_base[2])
+
+                self.tb.sendTransform(tvec_trans,rvec_trans, rospy.Time.now(), self.cam_name+"/camera_base", self.ref_pnt_name)
             
             if self.undistort: 
                 h, w = bgr_frame.shape[:2]
@@ -85,14 +93,25 @@ class ImageReciever:
                 undst = cv2.undistort(bgr_frame, self.cam_mtx, self.dst_params, None, newcameramtx)
                 bgr_frame = undst
         
-        cv2.imshow(self.sub_name, utils.resize_with_aspect_ratio(bgr_frame, 1000)) 
+        cv2.imshow(self.sub_name, utils.resize_with_aspect_ratio(bgr_frame, 1500)) 
         cv2.waitKey(2)
 
+    def show_ir_frame(self, data):
+        ir_frame = self.br.imgmsg_to_cv2(data)
+        cv2.imshow(self.ir_sub_name, utils.resize_with_aspect_ratio(ir_frame, 1500)) 
+        cv2.waitKey(3)
+
+    def show_depth_frame(self, data):
+        d_frame = self.br.imgmsg_to_cv2(data)
+        cv2.imshow(self.d_sub_name, utils.resize_with_aspect_ratio(d_frame, 1500)) 
+        cv2.waitKey(3)
 
     def receive_message(self):
         self.listener = tf.TransformListener()
         rospy.Subscriber(self.cam_info, CameraInfo, self.get_cam_params)
         rospy.Subscriber(self.sub_name, Image, self.callback)
+        rospy.Subscriber(self.ir_sub_name, Image, self.show_ir_frame)
+        rospy.Subscriber(self.d_sub_name, Image, self.show_depth_frame)
         
         rospy.spin()
 

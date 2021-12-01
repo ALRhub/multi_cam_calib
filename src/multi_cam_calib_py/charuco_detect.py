@@ -57,7 +57,7 @@ class CharucoCalibration:
             _, self.rvec, self.tvec = aruco.estimatePoseCharucoBoard(charuco_corners, charuco_ids, self.board, self.mtx, self.dist, self.rvec, self.tvec)
             return self.rvec.flatten().tolist(), self.tvec.flatten().tolist()
         else:
-            rospy.loginfo("no charuco board detected!")
+            #rospy.loginfo("no charuco board detected!")
             return None, None
 
 

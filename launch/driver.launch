@@ -24,8 +24,8 @@
 
 	<node
     pkg="multi_cam_calib"
-    type="scripts/img_sub.py"
-    name="img_sub"
+    type="scripts/cam_calib.py"
+    name="cam_calib"
     output="screen"
   />
 </launch> 
