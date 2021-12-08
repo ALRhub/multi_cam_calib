@@ -17,6 +17,8 @@ class ImageReciever:
         self.images=[]
         self.cam_mtx = None
         self.dst_params = None
+        self.cam_mtx_d = None
+        self.dst_params_d = None
         self.rvec = []
         self.tvec = []
         self.listener = None
@@ -29,51 +31,77 @@ class ImageReciever:
         self.sub_name = rospy.get_param("~sub_name")
         self.cam_name = rospy.get_param("~cam_name")
         self.cam_info = rospy.get_param("~cam_info")
+        self.cam_info_d = rospy.get_param("~cam_info_depth")
         self.ref_pnt_name = rospy.get_param("~trans_frame_name")
         self.br = CvBridge()
         self.tb = tf.TransformBroadcaster()
-    
+        self.depth = None
+
+
+    def get_cam_params_depth(self, data):
+        self.cam_mtx_d = np.array(data.K).reshape((3,3))
+        self.dst_params_d = np.array(data.D)    
+
 
     def get_cam_params(self, data):
         self.cam_mtx = np.array(data.K).reshape((3,3))
         self.dst_params = np.array(data.D)
 
 
+    def get_depth_image(self, data):
+        self.depth = self.br.imgmsg_to_cv2(data)
+        if self.undistort: 
+                h, w = self.depth.shape[:2]
+                newcameramtx, _ = cv2.getOptimalNewCameraMatrix(self.cam_mtx, self.dst_params, (w,h), 1, (w,h))
+                undst = cv2.undistort(self.depth, self.cam_mtx, self.dst_params, None, newcameramtx)
+                self.depth = undst
+
+    def find_depth(self, depth_img, x, y):
+        depth = depth_img[x, y]
+        coordinates = x, y, depth
+
+        return coordinates
+
     def callback(self, data):
         current_frame = self.br.imgmsg_to_cv2(data)
-        print(current_frame.shape)
-        bgr_frame = cv2.cvtColor(current_frame, cv2.COLOR_BGRA2BGR)
+        ir_frame = (current_frame/256).astype('uint8') 
 
         if self.undistort: 
-                h, w = bgr_frame.shape[:2]
+                h, w = ir_frame.shape[:2]
                 newcameramtx, _ = cv2.getOptimalNewCameraMatrix(self.cam_mtx, self.dst_params, (w,h), 1, (w,h))
-                undst = cv2.undistort(bgr_frame, self.cam_mtx, self.dst_params, None, newcameramtx)
-                bgr_frame = undst
+                undst = cv2.undistort(ir_frame, self.cam_mtx, self.dst_params, None, newcameramtx)
+                ir_frame = undst
 
-        centers = self.detector.detect(bgr_frame)
+        centers = self.detector.detect(ir_frame)
 
         if (len(centers) > 0):
-            cv2.circle(bgr_frame, (int(centers[0][0]), int(centers[0][1])), 10, (0, 191, 255), 2)
+            #print(f"found {len(centers)} centers")
+            cv2.circle(ir_frame, (int(centers[0][0]), int(centers[0][1])), 10, (255, 255, 255), 1)
 
-            (x, y) = self.KF.predict()
+            #x, y = self.KF.predict()
+            #x, y = int(x), int(y)
 
-            cv2.rectangle(bgr_frame, (x - 15, y - 15), (x + 15, y + 15), (255, 0, 0), 2)
+            #cv2.rectangle(ir_frame, (x - 10, y - 10), (x + 10, y + 10), (255, 255, 255), 1)
 
-            (x1, y1) = self.KF.update(centers[0])
+            #x1, y1 = self.KF.update(centers[0])
+            #x1, y1 = int(x1), int(y1)
 
-            cv2.rectangle(bgr_frame, (x1 - 15, y1 - 15), (x1 + 15, y1 + 15), (0, 0, 255), 2)
+            #cv2.rectangle(ir_frame, (x1 - 10, y1 - 10), (x1 + 10, y1 + 10), (255, 255, 255), 1)
 
-            cv2.putText(bgr_frame, "Estimated Position", (x1 + 15, y1 + 10), 0, 0.5, (0, 0, 255), 2)
-            cv2.putText(bgr_frame, "Predicted Position", (x + 15, y), 0, 0.5, (255, 0, 0), 2)
-            cv2.putText(bgr_frame, "Measured Position", (centers[0][0] + 15, centers[0][1] - 15), 0, 0.5, (0,191,255), 2)
+            #cv2.putText(ir_frame, "Estimated Position", (x1 + 15, y1 + 10), 0, 0.5, (255, 255, 255), 2)
+            #cv2.putText(ir_frame, "Predicted Position", (x + 15, y), 0, 0.5, (255, 0, 0), 2)
+            cv2.putText(ir_frame, "Marker Position", (int(centers[0][0]) + 15, int(centers[0][1]) - 15), 0, 0.5, (255,255,255), 1)
+            coordinates = self.find_depth(self.depth, int(centers[0][0]), int(centers[0][1]))
 
-        cv2.imshow(self.sub_name, utils.resize_with_aspect_ratio(bgr_frame, 1000))
+        cv2.imshow(self.sub_name, utils.resize_with_aspect_ratio(ir_frame, 1000))
         cv2.waitKey(2)
 
 
     def receive_message(self):
         self.listener = tf.TransformListener()
         rospy.Subscriber(self.cam_info, CameraInfo, self.get_cam_params)
+        rospy.Subscriber(self.cam_info_d, CameraInfo, self.get_cam_params_depth)
+        rospy.Subscriber(self.d_sub_name, Image, self.get_depth_image)
         rospy.Subscriber(self.ir_sub_name, Image, self.callback)
         
         rospy.spin()

@@ -36,8 +36,9 @@ class KalmanFilter:
     def predict(self):
         self.x = np.dot(self.A, self.x) + np.dot(self.B, self.u)
         self.P = np.dot(np.dot(self.A, self.P), self.A.T) + self.Q
-
-        return self.x[0:2]
+        #print(self.x[0:2])
+        #input("continue")
+        return self.x[0,0], self.x[1,0]
     
 
     def update(self, z):
@@ -48,5 +49,7 @@ class KalmanFilter:
         I = np.eye(self.H.shape[1])
 
         self.P = (I - (K * self.H)) * self.P  
-        
-        return self.x[0:2]
+        #print(self.x[0,0])
+        #print(self.x[1,0])
+        #input("continue")
+        return self.x[0,0], self.x[1,0]

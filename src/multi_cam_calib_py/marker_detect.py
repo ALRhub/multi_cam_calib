@@ -15,18 +15,21 @@ class Detector:
         return len(approx), peri, area
 
     def detect(self, frame):
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        ret, img_thresh = cv2.threshold(gray, 1.0, 250.0, cv2.THRESH_BINARY)
+        gray = frame #cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        img_edges = cv2.Canny(gray,  50, 190, 3)
 
-        cv2.imshow('img_thresh', utils.resize_with_aspect_ratio(img_thresh, 1500))
-        cv2.waitKey(0)
-        input("continue")
-        
-        contours, _ = cv2.findContours(frame, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        ret, img_thresh = cv2.threshold(img_edges, 254, 255, cv2.THRESH_BINARY)
+
+
+        contours, _ = cv2.findContours(img_thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+        #min_radius_thresh= 3
+        #max_radius_thresh= 30   
 
         centers = []
 
         for c in contours:
+            
             shape = self.detect_contour(c)
 
             if 14 > shape[0] > 10 and 800 > shape[1] > 50 and 15000 > shape[2] > 100:
@@ -34,6 +37,15 @@ class Detector:
 
                 c_x = int((m["m10"] / m["m00"]))
                 c_y = int((m["m01"] / m["m00"]))
-                centers.append(np.array([[c_x], [c_y]]))
+                centers.append(np.array([c_x, c_y]))
 
+            '''   
+
+            (x, y), radius = cv2.minEnclosingCircle(c)
+            radius = int(radius)
+            #Take only the valid circles
+            if (radius > min_radius_thresh) and (radius < max_radius_thresh):
+                centers.append(np.array([[x], [y]]))
+            '''
+             
         return centers
