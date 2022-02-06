@@ -12,6 +12,7 @@ import transforms3d as t3d
 from transforms3d.quaternions import quat2mat, mat2quat
 from transforms3d.affines import compose, decompose
 import cv2
+from sklearn.model_selection import train_test_split
 
 # from copy import deepcopy
 # from pprint import pprint as pp
@@ -127,28 +128,8 @@ class Calibration():
 
         self.tf_Cam_Calib.append(ros2mat(trans_cam_calib_mean, rot_cam_calib_mean))
 
-    def gather_val(self, cam_idx):
-        """
-            Gathering the current Transforms
-            Specifically from Robot Base to EndEffector, and from Camera to CalibBoard
-        """
-        
-        self.val_tf_L0_EE.append(self.get_transform_mat('panda_link0', 'panda_hand'))
-
-        trans_cam_calib_list = []
-        rot_cam_calib_list = []
-
-        for i in range(10):
-            self.myprint(".")
-            (trans, rot) = self.get_transform(f"cam_{cam_idx}/camera_base", f"cam_{cam_idx}/calib_board_small")
-            
-            trans_cam_calib_list.append(trans)
-            rot_cam_calib_list.append(rot)
-
-        trans_cam_calib_mean = np.mean(np.array(trans_cam_calib_list), axis=0)
-        rot_cam_calib_mean = np.mean(np.array(rot_cam_calib_list), axis=0)
-
-        self.val_tf_Cam_Calib.append(ros2mat(trans_cam_calib_mean, rot_cam_calib_mean))
+    def separate_validation_set(self):
+        tf_L0_EE, val_tf_L0_EE, tf_Cam_Calib, val_tf_Cam_Calib = train_test_split(self.tf_L0_EE, self.tf_Cam_Calib, test_size=0.33, random_state=42)
 
     ############################
     ### Validation Functions ###
@@ -177,22 +158,22 @@ class Calibration():
     ### Optimizations ###
     #####################
 
-    def optimise_tsai(self):
-        return self._optimise_opencv('Tsai-Lenz')
+    def optimize_tsai(self):
+        return self._optimize_opencv('Tsai-Lenz')
     
-    def optimise_daniilidis(self):
-        return self._optimise_opencv('Daniilidis')
+    def optimize_daniilidis(self):
+        return self._optimize_opencv('Daniilidis')
     
-    def optimise_horaud(self):
-        return self._optimise_opencv('Horaud')
+    def optimize_horaud(self):
+        return self._optimize_opencv('Horaud')
 
-    def optimise_park(self):
-        return self._optimise_opencv('Park')
+    def optimize_park(self):
+        return self._optimize_opencv('Park')
 
-    def optimise_andreff(self):
-        return self._optimise_opencv('Andreff')
+    def optimize_andreff(self):
+        return self._optimize_opencv('Andreff')
     
-    def _optimise_opencv(self, algorithm):
+    def _optimize_opencv(self, algorithm):
         """
             Optimizing Transformation using OpenCV default methods
         """
@@ -208,7 +189,7 @@ class Calibration():
 
         return result
 
-    def optimise_cma_es(self):
+    def optimize_cma_es(self):
         res = cma.fmin(self.objective_function_cma_es, [0.1]*7, 0.2)
 
         trans = res[0][0:3]
@@ -300,14 +281,21 @@ def main():
         with open(f"rot_file_{cam_idx}.yaml", 'w') as stream:
             yaml.dump(calib.rotDict)
 
-        result_tsai = calib.optimise_tsai()
-        result_daniilidis = calib.optimise_daniilidis()
-        result_horaud = calib.optimise_horaud()
-        result_park = calib.optimise_park()
-        result_andreff = calib.optimise_andreff()
-        result_cma_es = calib.optimise_cma_es()
+        calib.separate_validation_set()
         
-
+        result_tsai       = calib.optimize_tsai()
+        result_daniilidis = calib.optimize_daniilidis()
+        result_horaud     = calib.optimize_horaud()
+        result_park       = calib.optimize_park()
+        result_andreff    = calib.optimize_andreff()
+        result_cma_es     = calib.optimize_cma_es()
+        
+        calib.validate(result_tsai)
+        calib.validate(result_daniilidis)
+        calib.validate(result_horaud)
+        calib.validate(result_park)
+        calib.validate(result_andreff)
+        calib.validate(result_cma_es)
     # rate = rospy.Rate(10)
     # while not rospy.is_shutdown():
     #     calib.br.sendTransform((t[0], t[1], t[2]), (r[0], r[1], r[2], r[3]), rospy.Time.now(), 'cam_2/camera_base', 'panda_hand')
