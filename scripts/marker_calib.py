@@ -63,6 +63,7 @@ class ImageReciever:
         return coordinates
 
     def callback(self, data):
+        print("GotImage")
         current_frame = self.br.imgmsg_to_cv2(data)
         ir_frame = (current_frame/256).astype('uint8') 
 
@@ -75,7 +76,7 @@ class ImageReciever:
         centers = self.detector.detect(ir_frame)
 
         if (len(centers) > 0):
-            #print(f"found {len(centers)} centers")
+            print(f"found {len(centers)} centers")
             cv2.circle(ir_frame, (int(centers[0][0]), int(centers[0][1])), 10, (255, 255, 255), 1)
 
             #x, y = self.KF.predict()

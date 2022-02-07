@@ -26,8 +26,6 @@ class ImageReciever:
         self.undistort  = not rospy.get_param("~calibrated")
         self.charuco = charuco_detect.CharucoCalibration()
         self.pub = rospy.Publisher(rospy.get_param("~pub_name"), Calib, queue_size=1)
-        self.ir_sub_name = rospy.get_param("~ir_sub_name")
-        self.d_sub_name = rospy.get_param("~depth_sub_name")
         self.sub_name = rospy.get_param("~sub_name")
         self.cam_name = rospy.get_param("~cam_name")
         self.cam_info = rospy.get_param("~cam_info")
@@ -37,10 +35,6 @@ class ImageReciever:
 
 
     def publish_calibration(self, params):
-        print(params[0])
-        print(params[1])
-        print(params[2])
-        print(params[3])
         calib_data = Calib()
         calib_data.mtx = params[0].flatten().tolist()
         calib_data.dist = params[1].flatten().tolist()
@@ -52,7 +46,7 @@ class ImageReciever:
         rquat = transformation.transform_to_quat(params[2])
         rvec_tuple = (rquat[0],rquat[1], rquat[2], rquat[3])
         tvec_tuple = (params[3][0],params[3][1],params[3][2])
-        self.tb.sendTransform(tvec_tuple,rvec_tuple, rospy.Time.now(), self.cam_name +"/charuco", self.cam_name +"/rgb_camera_link")
+        self.tb.sendTransform(tvec_tuple,rvec_tuple, rospy.Time.now(), self.cam_name+"/charuco", self.cam_name +"/rgb_camera_link")
 
 
     def get_cam_params(self, data):
@@ -71,51 +65,41 @@ class ImageReciever:
             self.images.append(bgr_frame)
 
             if len(self.images) >= 100:
-                print("calibrating camera")
+                print("Calibrating internal camera parameters:")
                 self.calibrated, _, self.cam_mtx, self.dst_params, self.rvec, self.tvec, _, _ = self.charuco.charuco_calibration(self.images, self.cam_mtx, self.dst_params)
 
         else: 
-            self.rvec, self.tvec = self.charuco.charuco_calibration_ext(bgr_frame, self.cam_mtx, self.dst_params)
+            if self.cam_mtx is not None and self.dst_params is not None:
+                bgr_frame, self.rvec, self.tvec = self.charuco.charuco_calibration_ext(bgr_frame, self.cam_mtx, self.dst_params)
 
-            if self.rvec is not None and self.tvec is not None:
+            if len(self.rvec) == 3 and len(self.tvec) == 3:
                 self.publish_calibration([self.cam_mtx, self.dst_params, self.rvec, self.tvec])
 
-                tvec_charuco_base, rvec_charuco_base = self.listener.lookupTransform(self.cam_name +"/charuco", self.cam_name+"/camera_base", rospy.Time(0))
+                tvec_charuco_base, rvec_charuco_base = self.listener.lookupTransform(self.cam_name+"/charuco", self.cam_name+"/camera_base", rospy.Time(0))
 
                 rvec_trans = (rvec_charuco_base[0],rvec_charuco_base[1],rvec_charuco_base[2],rvec_charuco_base[3])
                 tvec_trans = (tvec_charuco_base[0],tvec_charuco_base[1],tvec_charuco_base[2])
 
                 self.tb.sendTransform(tvec_trans,rvec_trans, rospy.Time.now(), self.cam_name+"/camera_base", self.ref_pnt_name)
-            
+
             if self.undistort: 
                 h, w = bgr_frame.shape[:2]
                 newcameramtx, _ = cv2.getOptimalNewCameraMatrix(self.cam_mtx, self.dst_params, (w,h), 1, (w,h))
                 undst = cv2.undistort(bgr_frame, self.cam_mtx, self.dst_params, None, newcameramtx)
                 bgr_frame = undst
-        
-        cv2.imshow(self.sub_name, utils.resize_with_aspect_ratio(bgr_frame, 1500)) 
-        cv2.waitKey(2)
+            
+        #cv2.imshow(self.sub_name, utils.resize_with_aspect_ratio(bgr_frame, 1000)) 
+        #cv2.waitKey(2)
 
-    def show_ir_frame(self, data):
-        ir_frame = self.br.imgmsg_to_cv2(data)
-        cv2.imshow(self.ir_sub_name, utils.resize_with_aspect_ratio(ir_frame, 1500)) 
-        cv2.waitKey(3)
-
-    def show_depth_frame(self, data):
-        d_frame = self.br.imgmsg_to_cv2(data)
-        cv2.imshow(self.d_sub_name, utils.resize_with_aspect_ratio(d_frame, 1500)) 
-        cv2.waitKey(3)
 
     def receive_message(self):
         self.listener = tf.TransformListener()
         rospy.Subscriber(self.cam_info, CameraInfo, self.get_cam_params)
         rospy.Subscriber(self.sub_name, Image, self.callback)
-        rospy.Subscriber(self.ir_sub_name, Image, self.show_ir_frame)
-        rospy.Subscriber(self.d_sub_name, Image, self.show_depth_frame)
         
         rospy.spin()
 
-        cv2.destroyAllWindows()
+        #cv2.destroyAllWindows()
 
 
 if __name__ == '__main__':

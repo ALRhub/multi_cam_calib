@@ -1,5 +1,5 @@
 <launch>
-    <node name="img_sub_cam_1" pkg="multi_cam_calib" type="cam_calib.py" output="screen" >
+    <node name="img_sub_cam_1" pkg="multi_cam_calib" type="marker_calib.py" output="screen" >
         <param name="node_name" type="str" value="kinect_1_sub_py" />
         <param name="cam_name" type="str" value="cam_1" />
         <param name="mode_name" type="str" value="/rgb" />
