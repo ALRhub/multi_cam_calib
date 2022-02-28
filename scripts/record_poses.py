@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 import rospy
 import moveit_commander
 import sys
@@ -20,22 +22,23 @@ def main():
     arm.set_end_effector_link("panda_hand")    # planning wrt to panda_hand or link8
     
     joint_states = [[]]
-    camera = 0
     while True:
         
-        text = input()
+        text = raw_input()
         
         if text == "q":
             # TODO safe the poses
-            filename = input('Enter a filename, (if empty "joint_states.yaml")')
+            filename = raw_input('Enter a filename, (if empty "joint_states.yaml")')
             if not filename:
                 filename = "joint_states.yaml"
                 
             with open(filename, "w") as outfile:
                 yaml.dump(joint_states, outfile)
+            break
                 
         elif text == "s":
             joint_states[-1].append(arm.get_current_joint_values())
+            print("Recorded ", joint_states[-1][-1])
         elif text == "c":
             joint_states.append([])
     
