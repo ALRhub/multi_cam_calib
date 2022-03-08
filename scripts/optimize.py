@@ -192,7 +192,7 @@ class Calibration():
             trans_calib_calib_list.append(T)
             rot_calib_calib_list.append(mat2euler(R))
             
-        trans_error = np.linalg.norm(trans_calib_calib_list, axis=1)
+        trans_error = np.linalg.norm(trans_calib_calib_list, axis=1) * 1000
         rot_error = np.linalg.norm(rot_calib_calib_list, axis=1)
 
         print "Translation Mean Err", np.mean(trans_error)
@@ -293,6 +293,37 @@ class Calibration():
             SSE = SSE + np.sum(np.square(Xi - temp[0:3])) # Sum of Square Error (SSE)
 
         return SSE
+        
+
+    def optimize_cma_es_fulltf(self):
+        res = cma.fmin(self.objective_function_cma_es_fulltf, [0.1]*7, 0.2)
+        trans = res[0][0:3]
+        quat = res[0][3:]
+        quat = quat / np.linalg.norm(quat)
+
+        return compose(trans, quat2mat(quat), [1]*3)
+
+    def objective_function_cma_es_fulltf(self, x):
+        trans = [x[0], x[1], x[2]]
+        rot = [x[3], x[4], x[5], x[6]]
+        T = self.trans_quat_to_mat(trans, rot)
+
+        SSE = 0
+
+        for i in range(0, len(self.tf_L0_EE)):
+            tf_cam_calib = self.tf_Cam_Calib[i]
+            tf_L0_EE = self.tf_L0_EE[i]
+            
+            tf_calib_cam = np.linalg.inv(tf_cam_calib)
+            tf_calib_L0 = np.dot(tf_calib_cam, T)
+            tf_calib_EE = np.dot(tf_calib_L0, tf_L0_EE)
+            tf_calib_calib = np.dot(tf_calib_EE, self.tf_hand_to_board)
+            # tf_EE_Calib = np.dot(np.dot(tf_calib_cam, tf_cam_L0), tf_L0_EE)
+        
+            trans, rot, _, _ = decompose(tf_calib_calib)
+            SSE += np.square(np.linalg.norm(trans))
+
+        return np.sqrt(SSE)
 
 class Robot():
     def __init__(self):
@@ -373,6 +404,7 @@ def main():
     result_andreff    = calib.optimize_andreff()
     result_cma_es     = calib.optimize_cma_es()
     result_cma_es_direct = calib.optimize_cma_es_direct()
+    result_cma_es_fulltf = calib.optimize_cma_es_fulltf()
     
     print("#### tsai")
     calib.validate(result_tsai)
@@ -388,6 +420,8 @@ def main():
     calib.validate(result_cma_es)
     print("#### cma_es_direct")
     calib.validate(result_cma_es_direct)
+    print("#### cma_es_fulltf")
+    calib.validate(result_cma_es_fulltf)
     # rate = rospy.Rate(10)
     # while not rospy.is_shutdown():
     #     calib.br.sendTransform((t[0], t[1], t[2]), (r[0], r[1], r[2], r[3]), rospy.Time.now(), 'cam_1/camera_base', 'panda_hand')
