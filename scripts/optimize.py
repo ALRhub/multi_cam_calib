@@ -13,6 +13,7 @@ import yaml
 import transforms3d as t3d
 from transforms3d.quaternions import quat2mat, mat2quat
 from transforms3d.affines import compose, decompose
+from transforms3d.euler import quat2euler, mat2euler
 import cv2
 from sklearn.model_selection import train_test_split
 
@@ -45,20 +46,23 @@ class Calibration():
         'Daniilidis': cv2.CALIB_HAND_EYE_DANIILIDIS,
     }
 
-    def __init__(self):
+    def __init__(self, cam_id, load_from_file = False):
+        self.load_from_file = load_from_file
+
         self.tf_L0_EE = []
         self.tf_Cam_Calib = []
         
         self.val_tf_L0_EE = []
         self.val_tf_Cam_Calib = []
 
-        self.transDict = {}
-        self.rotDict = {}
 
-        self.listener = tf.TransformListener()
-        self.br = tf.TransformBroadcaster()
+        if not load_from_file:
+            self.listener = tf.TransformListener()
+            self.br = tf.TransformBroadcaster()
 
-        self.tf_hand_to_board = self.trans_quat_to_mat([-0.0825, 0.0285, 0.2669], [0.7071068, -0.7071068, 0.0, 0.0])
+        self.cam_id = cam_id
+
+        self.tf_hand_to_board = self.trans_quat_to_mat([-0.0825, 0.0285, 0.2669], [0.5, 0.5, 0.5, 0.5])
         print(self.tf_hand_to_board)
 
     ########################
@@ -70,7 +74,8 @@ class Calibration():
             Getting the transforms from 'from_tf' to 'to_tf'
             returns 4x4 Matrix
         """
-        
+        assert self.load_from_file == False, "ROS INTERACTION NOT WORKING IF LOADING FROM FILE"
+
         self.listener.waitForTransform(from_tf, to_tf, rospy.Time().now(), rospy.Duration(5.0))
         trans, rot = self.listener.lookupTransform(from_tf, to_tf, rospy.Time(0))
         return ros2mat(trans, rot)
@@ -81,7 +86,8 @@ class Calibration():
             Getting the transforms from 'from_tf' to 'to_tf'
             returns [x,y,z][x,y,z,w]
         """
-        
+        assert self.load_from_file == False, "ROS INTERACTION NOT WORKING IF LOADING FROM FILE"
+
         self.listener.waitForTransform(from_tf, to_tf, rospy.Time().now(), rospy.Duration(10.0))
         return self.listener.lookupTransform(from_tf, to_tf, rospy.Time(0))
 
@@ -120,24 +126,23 @@ class Calibration():
 
     def save_yaml(self, file_name):
         with open(file_name, 'w') as stream:
-            data_dict = {"rotDict": self.rotDict, "transDict": self.transDict, "tf_Cam_Calib": self.tf_Cam_Calib.tolist()}
-            yaml.dump(data_dict)
+            data_dict = {"tf_L0_EE": [n.tolist() for n in self.tf_L0_EE], "tf_Cam_Calib": [n.tolist() for n in self.tf_Cam_Calib]}
+            yaml.dump(data_dict, stream)
 
 
     def load_yaml(self, file_name):
         with open(file_name, 'r') as stream:
             data_dict = yaml.safe_load(stream)
         
-        self.rotDict = data_dict["rotDict"]
-        self.transDict = data_dict["transDict"]
-        self.tf_Cam_Calib = np.array(data_dict["tf_Cam_Calib"])
+        self.tf_L0_EE = [np.array(tf) for tf in data_dict["tf_L0_EE"]]
+        self.tf_Cam_Calib = [np.array(tf) for tf in data_dict["tf_Cam_Calib"]]
         
 
     ########################
     ### Gather Functions ###
     ########################
 
-    def gather(self, cam_idx):
+    def gather(self):
         """
             Gathering the current Transforms
             Specifically from Robot Base to EndEffector, and from Camera to CalibBoard
@@ -150,8 +155,8 @@ class Calibration():
         for _ in range(10):
             self.myprint(".")
 
-            from_string = "cam_%i/camera_base" % cam_idx
-            to_string = "cam_%i/calib_board_small" % cam_idx
+            from_string = "cam_%i/camera_base" % self.cam_id
+            to_string = "cam_%i/calib_board_small" % self.cam_id
             (trans, rot) = self.get_transform(from_string, to_string)
             
             trans_cam_calib_list.append(trans)
@@ -160,13 +165,11 @@ class Calibration():
         trans_cam_calib_mean = np.mean(np.array(trans_cam_calib_list), axis=0)
         rot_cam_calib_mean = np.mean(np.array(rot_cam_calib_list), axis=0)
 
-        self.transDict.update({"tf_L0_EE": self.tf_L0_EE})
 
         self.tf_Cam_Calib.append(ros2mat(trans_cam_calib_mean, rot_cam_calib_mean))
 
     def separate_validation_set(self):
         self.tf_L0_EE, self.val_tf_L0_EE, self.tf_Cam_Calib, self.val_tf_Cam_Calib = train_test_split(self.tf_L0_EE, self.tf_Cam_Calib, test_size=0.33, random_state=42)
-        self.transDict = {"tf_L0_EE": self.tf_L0_EE}
 
     ############################
     ### Validation Functions ###
@@ -176,19 +179,32 @@ class Calibration():
         """
             Applying the estimated transformations and checking the variation on the combined transformation
         """
-        trans_EE_Calib_list = []
-        rot_EE_Calib_list = []
+        trans_calib_calib_list = []
+        rot_calib_calib_list = []
         for tf_L0_EE, tf_cam_calib in zip(self.val_tf_L0_EE, self.val_tf_Cam_Calib):
-            tf_EE_Calib = np.dot(np.dot(np.linalg.inv(tf_cam_calib), tf_cam_L0), tf_L0_EE)
-
-            T, R, _, _ = decompose(tf_EE_Calib)
-            trans_EE_Calib_list.append(T)
-            rot_EE_Calib_list.append(mat2quat(R))
+            tf_calib_cam = np.linalg.inv(tf_cam_calib)
+            tf_calib_L0 = np.dot(tf_calib_cam, tf_cam_L0)
+            tf_calib_EE = np.dot(tf_calib_L0, tf_L0_EE)
+            tf_calib_calib = np.dot(tf_calib_EE, self.tf_hand_to_board)
+            # tf_EE_Calib = np.dot(np.dot(tf_calib_cam, tf_cam_L0), tf_L0_EE)
+        
+            T, R, _, _ = decompose(tf_calib_calib)
+            trans_calib_calib_list.append(T)
+            rot_calib_calib_list.append(mat2euler(R))
             
-        print("STD Err of Translation", np.std(trans_EE_Calib_list))
-        print("Variation of Translation", np.var(trans_EE_Calib_list))
-        print("STD Err of Rotation", np.std(rot_EE_Calib_list))
-        print("Variation of Rotation", np.var(rot_EE_Calib_list))
+        trans_error = np.linalg.norm(trans_calib_calib_list, axis=1)
+        rot_error = np.linalg.norm(rot_calib_calib_list, axis=1)
+
+        print "Translation Mean Err", np.mean(trans_error)
+        print "Translation Err Variation", np.var(trans_error)
+        print "Translation Max Err", np.max(trans_error)
+        print "Translation Min Err", np.min(trans_error)
+        print
+        print "Rotation Mean Err", np.mean(rot_error)
+        print "Rotation Err Variation", np.var(rot_error)
+        print "Rotation Max Err", np.max(rot_error)
+        print "Rotation Min Err", np.min(rot_error)
+        print
 
 
     #####################
@@ -223,7 +239,7 @@ class Calibration():
                                                                marker_camera_tr, method=method)
         result = compose(np.squeeze(hand_camera_tr), hand_camera_rot, [1, 1, 1])
 
-        return result
+        return np.linalg.inv(result) # Expecting cam_L0
 
     def optimize_cma_es(self):
         res = cma.fmin(self.objective_function_cma_es, [0.1]*7, 0.2)
@@ -237,10 +253,10 @@ class Calibration():
         trans = [x[0], x[1], x[2]]
         rot = [x[3], x[4], x[5], x[6]]
         tf_est_cam_L0 = self.trans_quat_to_mat(trans, rot)
-        pos_list = np.zeros((len(self.transDict['tf_L0_EE']),3))
-        orient_list = np.zeros((len(self.transDict['tf_L0_EE']),4))
+        pos_list = np.zeros((len(self.tf_L0_EE),3))
+        orient_list = np.zeros((len(self.tf_L0_EE),4))
 
-        for i in range(len(self.transDict['tf_L0_EE'])):
+        for i in range(len(self.tf_L0_EE)):
             tf_L0_EE = self.tf_L0_EE[i]
             tf_cam_calib = self.tf_Cam_Calib[i]
             tf_calib_cam = np.linalg.inv(tf_cam_calib)
@@ -251,6 +267,32 @@ class Calibration():
 
         return sse
 
+    def optimize_cma_es_direct(self):
+        res = cma.fmin(self.objective_function_cma_es_direct, [0.1]*7, 0.2)
+        trans = res[0][0:3]
+        quat = res[0][3:]
+        quat = quat / np.linalg.norm(quat)
+
+        return np.linalg.inv(compose(trans, quat2mat(quat), [1]*3))
+
+    def objective_function_cma_es_direct(self, x):
+        trans = [x[0], x[1], x[2]]
+        rot = [x[3], x[4], x[5], x[6]]
+        T = self.trans_quat_to_mat(trans, rot)
+
+        SSE = 0
+
+        for i in range(0, len(self.tf_L0_EE)):
+            tf_L0_calib = np.dot(self.tf_L0_EE[i], self.tf_hand_to_board)
+            Xi = tf_L0_calib[:3,3]
+            tf_cam_calib = self.tf_Cam_Calib[i]
+            Yi = tf_cam_calib[:,3]
+
+            # temp = T.dot(Yi)
+            temp = np.dot(T, Yi)
+            SSE = SSE + np.sum(np.square(Xi - temp[0:3])) # Sum of Square Error (SSE)
+
+        return SSE
 
 class Robot():
     def __init__(self):
@@ -281,55 +323,71 @@ class Robot():
 
 
 def main():
-    rospy.init_node('test', anonymous=True)
-    robot = Robot()
-    calib = Calibration()
+
+    if len(sys.argv) < 2:
+        print("DID NOT ENTER A CAMERA ID. Syntax: \"python optimize.py <camera_id>\"")
+        return
     
-    filename = raw_input('Enter the filename with the joint_positions: ')
+    cam_id = int(sys.argv[1])
 
-    if not filename: 
-        filename = 'joint_states.yaml'
-        cam_joint_states_val = cam_joint_states
+    if len(sys.argv) == 3:
 
-        for joint_positions in cam_joint_states:
+        in_filename = sys.argv[2]
+        print("Loading files from %s" % in_filename)
+
+        calib = Calibration(cam_id, load_from_file=True)
+        calib.load_yaml(in_filename)
+
+    else:
+        rospy.init_node('test', anonymous=True)
+        robot = Robot()
+        calib = Calibration(cam_id)
+
+
+        filename = raw_input('Enter the filename with the joint_positions: ')
+
+        if not filename: 
+            filename = 'joint_states.yaml'
+
+        with open(filename, 'r') as joint_states_file:
+            joint_states = yaml.load(joint_states_file)
+        
+        for joint_positions in joint_states:
+            print(joint_positions)
             robot.set_joint_positions(joint_positions)
             robot.move()
             time.sleep(2)
-            calib.gather(cam_idx)
-            time.sleep(1)
-        
-        for joint_positions in cam_joint_states_val:
-            robot.set_joint_positions(joint_positions)
-            robot.move()
-            time.sleep(2)
-            calib.gather(cam_idx)
+            calib.gather()
             time.sleep(1)
 
-        param_fle_name = "param_file_%i.yaml" % cam_idx   
-        calib.save_yaml(param_fle_name)
+            # Saving current data at every step, because why not
+            param_fle_name = "param_file_%i.yaml" % cam_id   
+            calib.save_yaml(param_fle_name)
 
-        calib.separate_validation_set()
-        
-        result_tsai       = calib.optimize_tsai()
-        result_daniilidis = calib.optimize_daniilidis()
-        result_horaud     = calib.optimize_horaud()
-        result_park       = calib.optimize_park()
-        result_andreff    = calib.optimize_andreff()
-        result_cma_es     = calib.optimize_cma_es()
-        
-        print("tsai")
-        calib.validate(result_tsai)
-        print("daniilidis")
-        calib.validate(result_daniilidis)
-        print("horaud")
-        calib.validate(result_horaud)
-        print("park")
-        calib.validate(result_park)
-        print("andreff")
-        calib.validate(result_andreff)
-        print("cma_es")
-        print("DEBUG - VAL")
-        calib.validate(result_cma_es)
+    calib.separate_validation_set()
+    
+    result_tsai       = calib.optimize_tsai()
+    result_daniilidis = calib.optimize_daniilidis()
+    result_horaud     = calib.optimize_horaud()
+    result_park       = calib.optimize_park()
+    result_andreff    = calib.optimize_andreff()
+    result_cma_es     = calib.optimize_cma_es()
+    result_cma_es_direct = calib.optimize_cma_es_direct()
+    
+    print("#### tsai")
+    calib.validate(result_tsai)
+    print("#### daniilidis")
+    calib.validate(result_daniilidis)
+    print("#### horaud")
+    calib.validate(result_horaud)
+    print("#### park")
+    calib.validate(result_park)
+    print("#### andreff")
+    calib.validate(result_andreff)
+    print("#### cma_es")
+    calib.validate(result_cma_es)
+    print("#### cma_es_direct")
+    calib.validate(result_cma_es_direct)
     # rate = rospy.Rate(10)
     # while not rospy.is_shutdown():
     #     calib.br.sendTransform((t[0], t[1], t[2]), (r[0], r[1], r[2], r[3]), rospy.Time.now(), 'cam_1/camera_base', 'panda_hand')
