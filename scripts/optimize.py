@@ -1,6 +1,11 @@
 #!/usr/bin/env python
+from cProfile import label
 from distutils.command.config import config
 from tokenize import String
+from cv2 import randShuffle
+import matplotlib
+matplotlib.use("TkAgg")
+from matplotlib import projections
 import tf
 import cma  # import CMA-ES optimization algorithm
 import sys
@@ -9,6 +14,8 @@ import rospy
 import numpy as np
 import moveit_commander
 import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
+
 import yaml
 import transforms3d as t3d
 from transforms3d.quaternions import quat2mat, mat2quat
@@ -28,10 +35,11 @@ from sklearn.model_selection import train_test_split
 # - storing data in a dictionary to reduce the no of lists
 # - saving data and prompting user if new data needs to be collected by running the robot
 # - reduced goal tolerance callibration to 5 mm
+# - fixing issue with loading and saving robot positions in yaml file
 # 
 # ####### TO DO:
 # - adding IF statement to only append data to list if marker detection = success  (marker likely to be moved)
-# - fixing issue with loading and saving robot positions in yaml file
+
 
 def ros2mat(trans, quat):
     return compose(trans, quat2mat([quat[3], quat[0], quat[1], quat[2]]), [1]*3)
@@ -55,15 +63,14 @@ class Calibration():
         self.val_tf_L0_EE = []
         self.val_tf_Cam_Calib = []
 
-
         if not load_from_file:
             self.listener = tf.TransformListener()
             self.br = tf.TransformBroadcaster()
 
         self.cam_id = cam_id
 
-        self.tf_hand_to_board = self.trans_quat_to_mat([-0.0825, 0.0285, 0.2669], [0.5, 0.5, 0.5, 0.5])
-        print(self.tf_hand_to_board)
+        self.tf_hand_to_board = self.trans_quat_to_mat([-0.082, 0.029, 0.2725], [0.7071068, 0.7071068, 0.0, 0.0])   # [0.5, 0.5, 0.5, 0.5]   [-0.0825, 0.0285, 0.2669]
+        #print(self.tf_hand_to_board)
 
     ########################
     ### Helper Functions ###
@@ -78,6 +85,7 @@ class Calibration():
 
         self.listener.waitForTransform(from_tf, to_tf, rospy.Time().now(), rospy.Duration(5.0))
         trans, rot = self.listener.lookupTransform(from_tf, to_tf, rospy.Time(0))
+
         return ros2mat(trans, rot)
 
 
@@ -89,7 +97,9 @@ class Calibration():
         assert self.load_from_file == False, "ROS INTERACTION NOT WORKING IF LOADING FROM FILE"
 
         self.listener.waitForTransform(from_tf, to_tf, rospy.Time().now(), rospy.Duration(10.0))
+
         return self.listener.lookupTransform(from_tf, to_tf, rospy.Time(0))
+
 
     def trans_quat_to_mat(self, trans, rot):
         rot_m = quat2mat(rot)
@@ -97,6 +107,7 @@ class Calibration():
         trans_mat = np.concatenate((trans_mat, np.array([0, 0, 0, 1]).reshape((1,4))), axis=0)
 
         return trans_mat
+
 
     def myprint(self, to_print):
         sys.stdout.write(to_print)
@@ -165,11 +176,12 @@ class Calibration():
         trans_cam_calib_mean = np.mean(np.array(trans_cam_calib_list), axis=0)
         rot_cam_calib_mean = np.mean(np.array(rot_cam_calib_list), axis=0)
 
-
         self.tf_Cam_Calib.append(ros2mat(trans_cam_calib_mean, rot_cam_calib_mean))
+
 
     def separate_validation_set(self):
         self.tf_L0_EE, self.val_tf_L0_EE, self.tf_Cam_Calib, self.val_tf_Cam_Calib = train_test_split(self.tf_L0_EE, self.tf_Cam_Calib, test_size=0.33, random_state=42)
+
 
     ############################
     ### Validation Functions ###
@@ -181,6 +193,7 @@ class Calibration():
         """
         trans_calib_calib_list = []
         rot_calib_calib_list = []
+
         for tf_L0_EE, tf_cam_calib in zip(self.val_tf_L0_EE, self.val_tf_Cam_Calib):
             tf_calib_cam = np.linalg.inv(tf_cam_calib)
             tf_calib_L0 = np.dot(tf_calib_cam, tf_cam_L0)
@@ -206,6 +219,22 @@ class Calibration():
         print "Rotation Min Err", np.min(rot_error)
         print
 
+        for tf_L0_EE, tf_cam_calib in zip(self.tf_L0_EE, self.tf_Cam_Calib):
+            tf_calib_cam = np.linalg.inv(tf_cam_calib)
+            tf_calib_L0 = np.dot(tf_calib_cam, tf_cam_L0)
+            tf_calib_EE = np.dot(tf_calib_L0, tf_L0_EE)
+            tf_calib_calib = np.dot(tf_calib_EE, self.tf_hand_to_board)
+            # tf_EE_Calib = np.dot(np.dot(tf_calib_cam, tf_cam_L0), tf_L0_EE)
+        
+            T, R, _, _ = decompose(tf_calib_calib)
+            trans_calib_calib_list.append(T)
+            rot_calib_calib_list.append(mat2euler(R))
+            
+        trans_error = np.linalg.norm(trans_calib_calib_list, axis=1) * 1000
+        rot_error = np.linalg.norm(rot_calib_calib_list, axis=1)
+
+        return trans_error, rot_error
+
 
     #####################
     ### Optimizations ###
@@ -214,18 +243,23 @@ class Calibration():
     def optimize_tsai(self):
         return self._optimize_opencv('Tsai-Lenz')
     
+
     def optimize_daniilidis(self):
         return self._optimize_opencv('Daniilidis')
     
+
     def optimize_horaud(self):
         return self._optimize_opencv('Horaud')
+
 
     def optimize_park(self):
         return self._optimize_opencv('Park')
 
+
     def optimize_andreff(self):
         return self._optimize_opencv('Andreff')
     
+
     def _optimize_opencv(self, algorithm):
         """
             Optimizing Transformation using OpenCV default methods
@@ -241,6 +275,7 @@ class Calibration():
 
         return np.linalg.inv(result) # Expecting cam_L0
 
+
     def optimize_cma_es(self):
         res = cma.fmin(self.objective_function_cma_es, [0.1]*7, 0.2)
         trans = res[0][0:3]
@@ -248,6 +283,7 @@ class Calibration():
         quat = quat / np.linalg.norm(quat)
 
         return compose(trans, quat2mat(quat), [1]*3)
+
 
     def objective_function_cma_es(self, x):
         trans = [x[0], x[1], x[2]]
@@ -267,13 +303,15 @@ class Calibration():
 
         return sse
 
+
     def optimize_cma_es_direct(self):
         res = cma.fmin(self.objective_function_cma_es_direct, [0.1]*7, 0.2)
         trans = res[0][0:3]
         quat = res[0][3:]
         quat = quat / np.linalg.norm(quat)
-
+        
         return np.linalg.inv(compose(trans, quat2mat(quat), [1]*3))
+
 
     def objective_function_cma_es_direct(self, x):
         trans = [x[0], x[1], x[2]]
@@ -291,7 +329,7 @@ class Calibration():
             # temp = T.dot(Yi)
             temp = np.dot(T, Yi)
             SSE = SSE + np.sum(np.square(Xi - temp[0:3])) # Sum of Square Error (SSE)
-
+        
         return SSE
         
 
@@ -300,8 +338,9 @@ class Calibration():
         trans = res[0][0:3]
         quat = res[0][3:]
         quat = quat / np.linalg.norm(quat)
-
+        
         return compose(trans, quat2mat(quat), [1]*3)
+
 
     def objective_function_cma_es_fulltf(self, x):
         trans = [x[0], x[1], x[2]]
@@ -325,6 +364,7 @@ class Calibration():
 
         return np.sqrt(SSE)
 
+
 class Robot():
     def __init__(self):
         print("============ Initialising...")
@@ -343,11 +383,13 @@ class Robot():
         self.arm.set_goal_orientation_tolerance(0.01)
         self.arm.set_planning_time(10)
 
+
     def move(self):
         print("============ Moving...")
         self.arm.go(wait=True)
         self.arm.stop()
         self.arm.clear_pose_targets()
+
 
     def set_joint_positions(self, joints):
         self.arm.set_joint_value_target(joints)
@@ -366,6 +408,7 @@ def main():
         in_filename = sys.argv[2]
         print("Loading files from %s" % in_filename)
 
+        rospy.init_node('test', anonymous=True)
         calib = Calibration(cam_id, load_from_file=True)
         calib.load_yaml(in_filename)
 
@@ -373,7 +416,6 @@ def main():
         rospy.init_node('test', anonymous=True)
         robot = Robot()
         calib = Calibration(cam_id)
-
 
         filename = raw_input('Enter the filename with the joint_positions: ')
 
@@ -383,8 +425,7 @@ def main():
         with open(filename, 'r') as joint_states_file:
             joint_states = yaml.load(joint_states_file)
         
-        for joint_positions in joint_states:
-            print(joint_positions)
+        for joint_positions in joint_states[0]:
             robot.set_joint_positions(joint_positions)
             robot.move()
             time.sleep(2)
@@ -407,25 +448,87 @@ def main():
     result_cma_es_fulltf = calib.optimize_cma_es_fulltf()
     
     print("#### tsai")
-    calib.validate(result_tsai)
+    res_trans_tsai, res_rot_tsai = calib.validate(result_tsai)
     print("#### daniilidis")
-    calib.validate(result_daniilidis)
+    res_trans_daniilidis, res_rot_daniilidis = calib.validate(result_daniilidis)
     print("#### horaud")
-    calib.validate(result_horaud)
+    res_trans_horaud, res_rot_horaud = calib.validate(result_horaud)
     print("#### park")
-    calib.validate(result_park)
+    res_trans_park, res_rot_park = calib.validate(result_park)
     print("#### andreff")
-    calib.validate(result_andreff)
+    res_trans_andreff, res_rot_andreff = calib.validate(result_andreff)
     print("#### cma_es")
-    calib.validate(result_cma_es)
+    res_trans_cma_es, res_rot_cma_es = calib.validate(result_cma_es)
     print("#### cma_es_direct")
-    calib.validate(result_cma_es_direct)
+    res_trans_cma_es_direct, res_rot_cma_es_direct = calib.validate(result_cma_es_direct)
     print("#### cma_es_fulltf")
-    calib.validate(result_cma_es_fulltf)
-    # rate = rospy.Rate(10)
-    # while not rospy.is_shutdown():
-    #     calib.br.sendTransform((t[0], t[1], t[2]), (r[0], r[1], r[2], r[3]), rospy.Time.now(), 'cam_1/camera_base', 'panda_hand')
+    res_trans_cma_es_fulltf, res_rot_cma_es_fulltf = calib.validate(result_cma_es_fulltf)
 
+    #plotting results
+    res_trans = [res_trans_tsai, res_trans_daniilidis, res_trans_horaud, res_trans_park, res_trans_andreff, res_trans_cma_es, res_trans_cma_es_direct, res_trans_cma_es_fulltf]
+    res_rot = [res_rot_tsai, res_rot_daniilidis, res_rot_horaud, res_rot_park, res_rot_andreff, res_rot_cma_es, res_rot_cma_es_direct, res_rot_cma_es_fulltf]
+    labels = ['tsai', 'daniilidis', 'horaud', 'park', 'andreff', 'cma_es', 'cma_es_direct', 'cma_es_fulltf']
+
+    fig_bp, ax_bp = plt.subplots(2, figsize=(15, 15))
+    ax_bp[0].set_title('Translation Error of Calibration')
+    ax_bp[0].boxplot(res_trans)
+    ax_bp[1].set_title('Rotation Error of Calibration')
+    ax_bp[1].boxplot(res_rot)
+    plt.setp(ax_bp, xticks=[1, 2, 3, 4, 5, 6, 7, 8], xticklabels=labels)
+    fig_bp.savefig("calibration_cam" + str(cam_id) + ".png", dpi=400)
+
+    x, y, z = [], [], []
+    for mat  in calib.val_tf_Cam_Calib:
+        x.append(mat[0, -1])
+        y.append(mat[1, -1])
+        z.append(mat[2, -1])
+    
+    for mat  in calib.tf_Cam_Calib:
+        x.append(mat[0, -1])
+        y.append(mat[1, -1])
+        z.append(mat[2, -1])
+
+    fig = plt.figure(figsize=(18, 9)) 
+    fig.suptitle('Calibration Error for Camera ' + str(cam_id), fontsize=16)
+    for idx in range(len(labels)):
+        ax = fig.add_subplot(2,4,(idx+1), projection='3d')
+        img = ax.scatter(x, y, z, c=res_trans[idx], s=100, cmap=plt.hot())
+        fig.colorbar(img)
+        ax.set_xlabel("x")
+        ax.set_ylabel("y")
+        ax.set_zlabel("z")
+        ax.set_title(labels[idx])
+
+    fig.savefig("calibration_error_3d_cam" + str(cam_id) + ".png", dpi=900)
+    #plt.show()
+
+    filename = 'trans_errors_cam'+str(cam_id)
+    with open(filename, 'wb') as f:
+        np.save(f, np.array(res_trans))
+    
+    filename = 'pos_cam'+str(cam_id)
+    with open(filename, 'wb') as f:
+        np.save(f, np.array([x, y, z]))
+
+    res2hand = result_cma_es_fulltf
+    t, r, _, _ = decompose(res2hand)
+    r = mat2quat(r)
+
+    #  ----->
+    base_to_board = calib.get_transform_mat("cam_"+str(cam_id)+"/camera_base", "cam_"+str(cam_id)+"/calib_board_small")
+    t_trans, r_trans, _, _ = decompose(np.dot(calib.tf_hand_to_board, np.dot(base_to_board, res2hand)))
+    r_trans = mat2quat(r_trans)
+    
+    #print(t)
+    #print(r)
+    #print(result_cma_es_fulltf)
+    #print(res2hand)
+    #print(decompose(res2hand))
+    
+    rate = rospy.Rate(10)
+    while not rospy.is_shutdown():
+        calib.br.sendTransform((t_trans[0], t_trans[1], t_trans[2]), (r_trans[1], r_trans[2], r_trans[3], r_trans[0]), rospy.Time.now(), "cam_" + str(cam_id) + "/camera_base", "panda_hand")
+        
 
 if __name__ == '__main__':
     try:
