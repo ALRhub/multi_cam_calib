@@ -511,23 +511,12 @@ def main():
         np.save(f, np.array([x, y, z]))
 
     res2hand = result_cma_es_fulltf
-    t, r, _, _ = decompose(res2hand)
+    t, r, _, _ = decompose(np.linalg.inv(res2hand))
     r = mat2quat(r)
-
-    #  ----->
-    base_to_board = calib.get_transform_mat("cam_"+str(cam_id)+"/camera_base", "cam_"+str(cam_id)+"/calib_board_small")
-    t_trans, r_trans, _, _ = decompose(np.dot(calib.tf_hand_to_board, np.dot(base_to_board, res2hand)))
-    r_trans = mat2quat(r_trans)
-    
-    #print(t)
-    #print(r)
-    #print(result_cma_es_fulltf)
-    #print(res2hand)
-    #print(decompose(res2hand))
     
     rate = rospy.Rate(10)
     while not rospy.is_shutdown():
-        calib.br.sendTransform((t_trans[0], t_trans[1], t_trans[2]), (r_trans[1], r_trans[2], r_trans[3], r_trans[0]), rospy.Time.now(), "cam_" + str(cam_id) + "/camera_base", "panda_hand")
+        calib.br.sendTransform((t[0], t[1], t[2]), (r[1], r[2], r[3], r[0]), rospy.Time.now(), "cam_" + str(cam_id) + "/camera_base", "panda_link0")
         
 
 if __name__ == '__main__':
