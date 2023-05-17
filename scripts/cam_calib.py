@@ -25,7 +25,6 @@ class ImageReciever:
         self.undistort  = not rospy.get_param("~calibrated")
         self.KF = kalman_filter.KalmanFilter(0.1, 1, 1, 1, 0.1,0.1)
         self.detector = detector.Detector()
-        #self.pub = rospy.Publisher(rospy.get_param("~pub_name"), Calib, queue_size=1)
         self.ir_sub_name = rospy.get_param("~ir_sub_name")
         self.d_sub_name = rospy.get_param("~depth_sub_name")
         self.sub_name = rospy.get_param("~sub_name")
