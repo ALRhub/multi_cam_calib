@@ -35,7 +35,7 @@ from sklearn.model_selection import train_test_split
 # ####### TO DO:
 # - adding IF statement to only append data to list if marker detection = success  (marker likely to be moved)
 
-
+# Calibration class 
 class Calibration():
     AVAILABLE_ALGORITHMS = {
         'Tsai-Lenz': cv2.CALIB_HAND_EYE_TSAI,
@@ -61,12 +61,14 @@ class Calibration():
         self.cam_id = cam_id
         self.cam_base_frame = cam_base_frame
 
+        #fixed tranformation from flansh of link 7 (Franka Panda robot) to ChAruco board corner
         self.tf_hand_to_board = self.trans_quat_to_mat([-0.082, 0.029, 0.2725], [0.7071068, 0.7071068, 0.0, 0.0])
 
     ########################
     ### Helper Functions ###
     ########################
 
+    # Returns the transformation matrix between two ROS transformation frames
     def get_transform_mat(self, from_tf, to_tf):
         """
             Getting the transforms from 'from_tf' to 'to_tf'
@@ -80,6 +82,7 @@ class Calibration():
         return self.ros2mat(trans, rot)
 
 
+    # Returns transformation between two ROS transformation frames
     def get_transform(self, from_tf, to_tf):
         """
             Getting the transforms from 'from_tf' to 'to_tf'
@@ -92,6 +95,7 @@ class Calibration():
         return self.listener.lookupTransform(from_tf, to_tf, rospy.Time(0))
 
 
+    # Returns tranformation matrix given translation and rotation vectors
     def trans_quat_to_mat(self, trans, rot):
         rot_m = quat2mat(rot)
         trans_mat = np.concatenate((rot_m, np.array(trans).reshape((3, 1))), axis=1)
@@ -99,9 +103,13 @@ class Calibration():
 
         return trans_mat
     
+
+    # returns transformation matrix given translation vector and quaternion
     def ros2mat(self, trans, quat):
         return compose(trans, quat2mat([quat[3], quat[0], quat[1], quat[2]]), [1]*3)
 
+
+    # Interactive print method
     def dynamicprint(self, to_print):
         sys.stdout.write(to_print)
         sys.stdout.flush()
@@ -128,18 +136,25 @@ class Calibration():
         return (rot_EE_L0, trans_EE_L0), (rot_cam_calib, trans_cam_calib)
 
 
+    # Save transformation from robot base to end-effector in a yaml file
     def save_yaml(self, file_name):
         with open(file_name, 'w') as stream:
             data_dict = {"tf_L0_EE": [n.tolist() for n in self.tf_L0_EE], "tf_Cam_Calib": [n.tolist() for n in self.tf_Cam_Calib]}
             yaml.dump(data_dict, stream)
 
 
+    # Load transformation from robot base to end-effector from a yaml file
     def load_yaml(self, file_name):
         with open(file_name, 'r') as stream:
             data_dict = yaml.safe_load(stream)
         
         self.tf_L0_EE = [np.array(tf) for tf in data_dict["tf_L0_EE"]]
         self.tf_Cam_Calib = [np.array(tf) for tf in data_dict["tf_Cam_Calib"]]
+    
+
+    # Split dataset to calibration and validation data. Validation dataset conists of 20% of available data.
+    def separate_validation_set(self):
+        self.tf_L0_EE, self.val_tf_L0_EE, self.tf_Cam_Calib, self.val_tf_Cam_Calib = train_test_split(self.tf_L0_EE, self.tf_Cam_Calib, test_size=0.2, random_state=42)
         
 
     ########################
@@ -172,10 +187,6 @@ class Calibration():
         self.tf_Cam_Calib.append(self.ros2mat(trans_cam_calib_mean, rot_cam_calib_mean))
 
 
-    def separate_validation_set(self):
-        self.tf_L0_EE, self.val_tf_L0_EE, self.tf_Cam_Calib, self.val_tf_Cam_Calib = train_test_split(self.tf_L0_EE, self.tf_Cam_Calib, test_size=0.2, random_state=42)
-
-
     ############################
     ### Validation Functions ###
     ############################
@@ -192,7 +203,6 @@ class Calibration():
             tf_calib_L0 = np.dot(tf_calib_cam, tf_cam_L0)
             tf_calib_EE = np.dot(tf_calib_L0, tf_L0_EE)
             tf_calib_calib = np.dot(tf_calib_EE, self.tf_hand_to_board)
-            # tf_EE_Calib = np.dot(np.dot(tf_calib_cam, tf_cam_L0), tf_L0_EE)
         
             T, R, _, _ = decompose(tf_calib_calib)
             trans_calib_calib_list.append(T)
@@ -217,7 +227,6 @@ class Calibration():
             tf_calib_L0 = np.dot(tf_calib_cam, tf_cam_L0)
             tf_calib_EE = np.dot(tf_calib_L0, tf_L0_EE)
             tf_calib_calib = np.dot(tf_calib_EE, self.tf_hand_to_board)
-            # tf_EE_Calib = np.dot(np.dot(tf_calib_cam, tf_cam_L0), tf_L0_EE)
         
             T, R, _, _ = decompose(tf_calib_calib)
             trans_calib_calib_list.append(T)
@@ -232,6 +241,8 @@ class Calibration():
     #####################
     ### Optimizations ###
     #####################
+
+    # Default OpenCV optimization methods 
 
     def optimize_tsai(self):
         return self._optimize_opencv('Tsai-Lenz')
@@ -269,6 +280,8 @@ class Calibration():
         return np.linalg.inv(result)
 
 
+    # CMA based optimization methods
+
     def optimize_cma_es(self):
         res = cma.fmin(self.objective_function_cma_es, [0.1]*7, 0.2)
         trans = res[0][0:3]
@@ -292,9 +305,11 @@ class Calibration():
             tf_calib_EE = np.dot(np.dot(tf_calib_cam, tf_est_cam_L0), tf_L0_EE)
             pos_list[i,:] = tf_calib_EE[0:3,3]
             orient_list[i, :] = mat2quat(tf_calib_EE[0:3, 0:3])
-        sse = np.sum(np.var(pos_list, axis=0))
+        
+        # Sum of Square Error (SSE)
+        SSE = np.sum(np.var(pos_list, axis=0))
 
-        return sse
+        return SSE
 
 
     def optimize_cma_es_direct(self):
@@ -319,7 +334,9 @@ class Calibration():
             tf_cam_calib = self.tf_Cam_Calib[i]
             Yi = tf_cam_calib[:,3]
             temp = np.dot(T, Yi)
-            SSE = SSE + np.sum(np.square(Xi - temp[0:3])) # Sum of Square Error (SSE)
+
+            # Sum of Square Error (SSE)
+            SSE = SSE + np.sum(np.square(Xi - temp[0:3])) 
         
         return SSE
         
@@ -350,6 +367,8 @@ class Calibration():
             tf_calib_calib = np.dot(tf_calib_EE, self.tf_hand_to_board)
         
             trans, rot, _, _ = decompose(tf_calib_calib)
+
+            # Sum of Square Error (SSE)
             SSE += np.square(np.linalg.norm(trans))
 
         return np.sqrt(SSE)
@@ -359,7 +378,9 @@ class Calibration():
     ###   Plotting    ###
     #####################
 
+    # plttiong box plot of calibration results and 3D plot of errors of specific board positions 
     def plot_results(self, cam_id, res_trans, res_rot, labels):
+        # Box plot of validation errors
         fig_bp, ax_bp = plt.subplots(2, figsize=(15, 15))
         ax_bp[0].set_title('Translation Error of Calibration')
         ax_bp[0].boxplot(res_trans)
@@ -380,6 +401,7 @@ class Calibration():
             y.append(mat[1, -1])
             z.append(mat[2, -1])
 
+        # 3D plot of validation erros
         fig = plt.figure(figsize=(18, 9)) 
         fig.suptitle('Calibration Error for Camera ' + str(cam_id), fontsize=16)
         for idx in range(len(labels)):
@@ -394,6 +416,7 @@ class Calibration():
         fig.savefig("calibration_error_3d_cam" + str(cam_id) + ".png", dpi=900)
 
 
+# Robot class using Moveit!
 class Robot():
     def __init__(self):
         print("============ Initialising...")
@@ -412,18 +435,21 @@ class Robot():
         self.arm.set_goal_orientation_tolerance(0.01)
         self.arm.set_planning_time(10)
 
-
+    
+    # Moving joints to new positions 
     def move(self):
         print("============ Moving...")
         self.arm.go(wait=True)
         self.arm.stop()
         self.arm.clear_pose_targets()
 
-
+    
+    # Set new joint positions 
     def set_joint_positions(self, joints):
         self.arm.set_joint_value_target(joints)
 
 
+# Main method of calibration process
 def main(calib_config:Dict, plot:bool=False, publish:bool=True, save:bool=True):
 
     if len(sys.argv) < 2:
@@ -438,7 +464,7 @@ def main(calib_config:Dict, plot:bool=False, publish:bool=True, save:bool=True):
         in_filename = sys.argv[2]
         print("Loading files from %s" % in_filename)
 
-        rospy.init_node('test', anonymous=True)
+        rospy.init_node('calib', anonymous=True)
         calib = Calibration(cam_id, cam_base, load_from_file=True)
         calib.load_yaml(in_filename)
 
@@ -478,7 +504,9 @@ def main(calib_config:Dict, plot:bool=False, publish:bool=True, save:bool=True):
     print("cma_es : 6")
     print("cma_es_direct : 7")
     print("cma_es_fulltf : 8")
-    chosen_calibration = int(raw_input("Please enter desired solver ID:"))
+    
+    choice = raw_input("Please enter desired solver ID:")
+    chosen_calibration = int(choice)
     
     if chosen_calibration == 1:
         result_tsai = calib.optimize_tsai()
@@ -524,7 +552,7 @@ def main(calib_config:Dict, plot:bool=False, publish:bool=True, save:bool=True):
         print("{} is not a valid option!".format(chosen_calibration))
     
 
-    #plotting results
+    # Plot results
     if plot:
         calib.plot_results(cam_id=cam_id, res_trans=res_trans, res_rot=res_rot, labels=label)
 
@@ -533,12 +561,14 @@ def main(calib_config:Dict, plot:bool=False, publish:bool=True, save:bool=True):
     trans, rot, _, _ = decompose(np.linalg.inv(res2hand))
     quat = mat2quat(rot)
 
+    # Save results transformation
     if save:
         filename = "calibration_cam_%i.yaml" % cam_id  
         with open(filename, 'w') as stream:
                 data_dict = {"quaternion": quat, "t_vec": trans}
                 yaml.dump(data_dict, stream)
 
+    # Publish resulting transformation
     if publish:
         rate = rospy.Rate(10)
         while not rospy.is_shutdown():

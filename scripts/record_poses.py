@@ -5,6 +5,7 @@ import moveit_commander
 import sys
 import yaml
 
+# Method for recording new robot joint positions
 def main():
     rospy.init_node('test', anonymous=True)
     print("This tool will allow you to record poses for the robot into a csv file")

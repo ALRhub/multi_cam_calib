@@ -13,6 +13,7 @@ import multi_cam_calib_py.transformation as transformation
 import multi_cam_calib_py.utils as utils 
 
 
+# Class for detecting and publishing transformation to ChAruco board
 class CharucoDetector:
     def __init__(self):
         self.images=[]
@@ -33,10 +34,11 @@ class CharucoDetector:
         self.cam_info = rospy.get_param("~cam_info")
         self.ref_pnt_name = rospy.get_param("~target_frame_name")
         self.camera_base_name = rospy.get_param("~base_frame_name")
+        self.charuco_link_frame = rospy.get_param("~charuco_link_frame_name")
         self.br = CvBridge()
         self.tb = tf.TransformBroadcaster()
 
-
+    # Publishes calculated calibration to specified ROS topic
     def publish_calibration(self, params):
         calib_data = Calib()
         calib_data.mtx = params[0].flatten().tolist()
@@ -49,18 +51,19 @@ class CharucoDetector:
         rquat = transformation.transform_to_quat(params[2])
         rvec_tuple = (rquat[0],rquat[1], rquat[2], rquat[3])
         tvec_tuple = (params[3][0],params[3][1],params[3][2])
-        self.tb.sendTransform(tvec_tuple,rvec_tuple, rospy.Time.now(), self.cam_name +"/charuco", self.cam_name +"/rgb_camera_link")
+        self.tb.sendTransform(tvec_tuple,rvec_tuple, rospy.Time.now(), self.cam_name +"/charuco", self.cam_name + self.charuco_link_frame)
 
-
+    # Returns camera parameters from ROS topic .../camera_info
     def get_cam_params(self, data):
         self.cam_mtx = np.array(data.K).reshape((3,3))
         self.dst_params = np.array(data.D)
 
-
+    # Main callback method when new message is recieved
     def callback(self, data):
         current_frame = self.br.imgmsg_to_cv2(data)
         bgr_frame = cv2.cvtColor(current_frame, cv2.COLOR_BGRA2BGR)
 
+        # Execute internal calibration if not calibrated, else external calibration
         if not self.calibrated:
             if len(self.images) % 10 >= 0:
                 input("Position camera:")
@@ -87,23 +90,11 @@ class CharucoDetector:
 
             if self.undistort: 
                 h, w = bgr_frame.shape[:2]
-                newcameramtx, _ = cv2.getOptimalNewCameraMatrix(self.cam_mtx, self.dst_params, (w,h), 1, (w,h))
-                undst = cv2.undistort(bgr_frame, self.cam_mtx, self.dst_params, None, newcameramtx)
+                cam_mtx_new, _ = cv2.getOptimalNewCameraMatrix(self.cam_mtx, self.dst_params, (w,h), 1, (w,h))
+                undst = cv2.undistort(bgr_frame, self.cam_mtx, self.dst_params, None, cam_mtx_new)
                 bgr_frame = undst
 
-
-    def show_ir_frame(self, data):
-        ir_frame = self.br.imgmsg_to_cv2(data)
-        cv2.imshow(self.ir_sub_name, utils.resize_with_aspect_ratio(ir_frame, 1500)) 
-        cv2.waitKey(3)
-
-
-    def show_depth_frame(self, data):
-        d_frame = self.br.imgmsg_to_cv2(data)
-        cv2.imshow(self.d_sub_name, utils.resize_with_aspect_ratio(d_frame, 1500)) 
-        cv2.waitKey(3)
-
-
+    # Method for receiving messages
     def receive_message(self):
         self.listener = tf.TransformListener()
         rospy.Subscriber(self.cam_info, CameraInfo, self.get_cam_params)

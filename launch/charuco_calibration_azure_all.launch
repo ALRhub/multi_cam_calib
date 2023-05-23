@@ -11,6 +11,7 @@
         <param name="pub_name" type="str" value="/cam_1/rgb/image_rect_color/charuco" />
         <param name="target_frame_name" type="str" value="charuco" />
         <param name="base_frame_name" type="str" value="/camera_base" />
+        <param name="charuco_link_frame_name" type="str" value="/rgb_camera_link" />
     </node>
 
     <node name="charuco_cam_2" pkg="multi_cam_calib" type="charuco_publisher.py" output="screen" >
@@ -25,6 +26,7 @@
         <param name="pub_name" type="str" value="/cam_2/rgb/image_rect_color/charuco" />
         <param name="target_frame_name" type="str" value="charuco" />
         <param name="base_frame_name" type="str" value="/camera_base" />
+        <param name="charuco_link_frame_name" type="str" value="/rgb_camera_link" />
     </node> 
 
     <node name="charuco_cam_3" pkg="multi_cam_calib" type="charuco_publisher.py" output="screen" >
@@ -39,6 +41,7 @@
         <param name="pub_name" type="str" value="/cam_3/rgb/image_rect_color/charuco" />
         <param name="target_frame_name" type="str" value="charuco" />
         <param name="base_frame_name" type="str" value="/camera_base" />
+        <param name="charuco_link_frame_name" type="str" value="/rgb_camera_link" />
     </node> 
 
     <node name="charuco_cam_4" pkg="multi_cam_calib" type="charuco_publisher.py" output="screen" >
@@ -53,6 +56,7 @@
         <param name="pub_name" type="str" value="/cam_4/rgb/image_rect_color/charuco" />
         <param name="target_frame_name" type="str" value="charuco" />
         <param name="base_frame_name" type="str" value="/camera_base" />
+        <param name="charuco_link_frame_name" type="str" value="/rgb_camera_link" />
     </node>  
 
 </launch>
