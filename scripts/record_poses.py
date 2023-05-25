@@ -4,10 +4,13 @@ import rospy
 import moveit_commander
 import sys
 import yaml
+from yaml.loader import SafeLoader
 
 # Method for recording new robot joint positions
-def main():
-    rospy.init_node('test', anonymous=True)
+def main(calib_config):
+    robot_config = calib_config.get("robot")
+    rospy.init_node('pose_rec', anonymous=True)
+
     print("This tool will allow you to record poses for the robot into a csv file")
     print("ONLY USE THIS IN THE WHITE MODE")
     print("HELP:")
@@ -18,9 +21,9 @@ def main():
     
     ## Initializing the Robot ##
     moveit_commander.roscpp_initialize(sys.argv)
-    arm = moveit_commander.MoveGroupCommander("panda_arm")
-    arm.set_planner_id("FMTkConfigDefault")
-    arm.set_end_effector_link("panda_hand")    # planning wrt to panda_hand or link8
+    arm = moveit_commander.MoveGroupCommander(robot_config.get("move_group_commander"))
+    arm.set_planner_id(robot_config.get("planer_id"))
+    arm.set_end_effector_link(robot_config.get("tcp_frame"))    # planning wrt to robot tcp
     
     joint_states = [[]]
     while True:
@@ -29,11 +32,11 @@ def main():
         
         if text == "q":
             # TODO safe the poses
-            filename = raw_input('Enter a filename, (if empty "joint_states.yaml")')
-            if not filename:
-                filename = "joint_states.yaml"
+            file_name = raw_input('Enter a filename, (if empty "joint_states.yaml")')
+            if not file_name:
+                file_name = "joint_states.yaml"
                 
-            with open(filename, "w") as outfile:
+            with open(file_name, "w") as outfile:
                 yaml.dump(joint_states, outfile)
             break
                 
@@ -46,7 +49,9 @@ def main():
 
 if __name__ == '__main__':
     try:
-        main()
+        with open('calibration_config.yaml') as f:
+            calib_config = yaml.load(f, Loader=SafeLoader)
+        main(calib_config)
     except Exception as e:
         print(e)
     finally:

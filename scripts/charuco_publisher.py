@@ -26,7 +26,7 @@ class CharucoDetector:
         self.undistort  = not rospy.get_param("~calibrated")
         self.charuco = charuco_detect.CharucoCalibration()
         self.pub = rospy.Publisher(rospy.get_param("~pub_name"), Calib, queue_size=1)
-        self.img_pub = rospy.Publisher(rospy.get_param("~sub_name")+"/targets", Image, queue_size=10)
+        self.img_pub = rospy.Publisher(rospy.get_param("~sub_name")+"/charuco_board", Image, queue_size=10)
         self.ir_sub_name = rospy.get_param("~ir_sub_name")
         self.d_sub_name = rospy.get_param("~depth_sub_name")
         self.sub_name = rospy.get_param("~sub_name")

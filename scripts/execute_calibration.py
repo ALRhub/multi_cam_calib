@@ -1,5 +1,7 @@
 #!/usr/bin/env python
+
 from typing import Dict
+import os
 import matplotlib
 matplotlib.use("TkAgg")
 import tf
@@ -19,10 +21,6 @@ import cv2
 from sklearn.model_selection import train_test_split
 
 
-# from copy import deepcopy
-# from pprint import pprint as pp
-# 
-# 
 # ####### LOG:
 # - fixing planning frame panda_hand/panda_ee confict
 # - adding rotations errors to SEE to force converging to correct solution (multiple correct solutions likely when monitoring translation errors only)
@@ -35,6 +33,7 @@ from sklearn.model_selection import train_test_split
 # ####### TO DO:
 # - adding IF statement to only append data to list if marker detection = success  (marker likely to be moved)
 
+
 # Calibration class 
 class Calibration():
     AVAILABLE_ALGORITHMS = {
@@ -45,8 +44,12 @@ class Calibration():
         'Daniilidis': cv2.CALIB_HAND_EYE_DANIILIDIS,
     }
 
-    def __init__(self, cam_id, cam_base_frame, load_from_file = False):
+    def __init__(self, cam_id, cam_base_frame, config, load_from_file = False):
         self.load_from_file = load_from_file
+        self.save_path = config.get("save_path")
+        self.cam_config = config.get("camera")
+        self.robot_config = config.get("robot")
+        charuco_config = config.get("charuco")
 
         self.tf_L0_EE = []
         self.tf_Cam_Calib = []
@@ -61,8 +64,8 @@ class Calibration():
         self.cam_id = cam_id
         self.cam_base_frame = cam_base_frame
 
-        #fixed tranformation from flansh of link 7 (Franka Panda robot) to ChAruco board corner
-        self.tf_hand_to_board = self.trans_quat_to_mat([-0.082, 0.029, 0.2725], [0.7071068, 0.7071068, 0.0, 0.0])
+        #fixed tranformation from robot flange to ChAruco board corner
+        self.tf_hand_to_board = self.trans_quat_to_mat(charuco_config.get("translation_tcp2board"), charuco_config.get("rotation_tcp2board"))
 
     ########################
     ### Helper Functions ###
@@ -166,7 +169,7 @@ class Calibration():
             Gathering the current Transforms
             Specifically from Robot Base to EndEffector, and from Camera to CalibBoard
         """
-        self.tf_L0_EE.append(self.get_transform_mat('panda_link0', 'panda_hand'))
+        self.tf_L0_EE.append(self.get_transform_mat(self.robot_config.get("base_frame"), self.robot_config.get("tcp_frame")))
 
         trans_cam_calib_list = []
         rot_cam_calib_list = []
@@ -174,8 +177,8 @@ class Calibration():
         for _ in range(10):
             self.dynamic_print(".")
 
-            from_string = "cam_%i" % self.cam_id + self.cam_base_frame
-            to_string = "cam_%i/calib_board_small" % self.cam_id
+            from_string = self.cam_config.get("base_frame")
+            to_string = self.cam_config.get("board_frame")
             (trans, rot) = self.get_transform(from_string, to_string)
             
             trans_cam_calib_list.append(trans)
@@ -387,7 +390,9 @@ class Calibration():
         ax_bp[1].set_title('Rotation Error of Calibration')
         ax_bp[1].boxplot(res_rot)
         plt.setp(ax_bp, xticks=[1, 2, 3, 4, 5, 6, 7, 8], xticklabels=labels)
-        fig_bp.savefig("calibration_cam" + str(cam_id) + ".png", dpi=400)
+        fig_name = "calibration_cam" + str(cam_id) + ".png"
+
+        fig_bp.savefig(os.path.join(self.save_path, fig_name), dpi=400)
 
         x, y, z = [], [], []
         
@@ -412,28 +417,29 @@ class Calibration():
             ax.set_ylabel("y")
             ax.set_zlabel("z")
             ax.set_title(labels[idx])
-
-        fig.savefig("calibration_error_3d_cam" + str(cam_id) + ".png", dpi=900)
+        fig_name = "calibration_error_3d_cam" + str(cam_id) + ".png"
+        fig.savefig(os.path.join(self.save_path, fig_name), dpi=900)
 
 
 # Robot class using Moveit!
 class Robot():
-    def __init__(self):
+    def __init__(self, robot_config):
+        self.robot_config = robot_config
         print("============ Initialising...")
         moveit_commander.roscpp_initialize(sys.argv)
         self.commander = moveit_commander.RobotCommander()
         self.scene = moveit_commander.PlanningSceneInterface()
-        self.arm = moveit_commander.MoveGroupCommander("panda_arm")
-        self.arm.set_planner_id("FMTkConfigDefault")
+        self.arm = moveit_commander.MoveGroupCommander(self.robot_config.get("move_group_commander"))
+        self.arm.set_planner_id(self.robot_config.get("planer_id"))
         rospy.sleep(2)
-        self.arm.set_end_effector_link("panda_hand")    # planning wrt to panda_hand or link8
-        self.arm.set_max_velocity_scaling_factor(0.15)  # scaling down velocity
-        self.arm.set_max_acceleration_scaling_factor(0.15)  # scaling down velocity
-        self.arm.allow_replanning(True)
-        self.arm.set_num_planning_attempts(10)
-        self.arm.set_goal_position_tolerance(0.005)
-        self.arm.set_goal_orientation_tolerance(0.01)
-        self.arm.set_planning_time(10)
+        self.arm.set_end_effector_link(self.robot_config.get("tcp_frame"))    # planning wrt to panda_hand or link8
+        self.arm.set_max_velocity_scaling_factor(self.robot_config.get("max_acceleration_scaling_factor"))  # scaling down velocity
+        self.arm.set_max_acceleration_scaling_factor(self.robot_config.get("max_acceleration_scaling_factor"))  # scaling down velocity
+        self.arm.allow_replanning(self.robot_config.get("allow_replanning"))
+        self.arm.set_num_planning_attempts(self.robot_config.get("num_planning_attempts"))
+        self.arm.set_goal_position_tolerance(self.robot_config.get("goal_position_tolerance"))
+        self.arm.set_goal_orientation_tolerance(self.robot_config.get("goal_orientation_tolerance"))
+        self.arm.set_planning_time(self.robot_config.get("planning_time"))
 
     
     # Moving joints to new positions 
@@ -456,8 +462,11 @@ def main(calib_config:Dict, plot:bool=False, publish:bool=True, save:bool=True):
         print("DID NOT ENTER A CAMERA ID. Syntax: \"python optimize.py <camera_id>\"")
         return
     
-    cam_id = int(sys.argv[1])
-    cam_base = calib_config.get("base_frame")
+    cam_config = calib_config.get("camera")
+    robot_config = calib_config.get("robot")
+    cam_base = cam_config.get("base_frame")
+    cam_id = cam_config.get("cam_id") #int(sys.argv[1])
+    robot_base = robot_config.get("base_frame")
 
     if len(sys.argv) == 3:
 
@@ -465,13 +474,13 @@ def main(calib_config:Dict, plot:bool=False, publish:bool=True, save:bool=True):
         print("Loading files from %s" % in_filename)
 
         rospy.init_node('calib', anonymous=True)
-        calib = Calibration(cam_id, cam_base, load_from_file=True)
+        calib = Calibration(cam_id, cam_base, calib_config, load_from_file=True)
         calib.load_yaml(in_filename)
 
     else:
         rospy.init_node('test', anonymous=True)
-        robot = Robot()
-        calib = Calibration(cam_id)
+        robot = Robot(robot_config)
+        calib = Calibration(cam_id, cam_base, calib_config)
 
         filename = raw_input('Enter the filename with the joint_positions: ')
 
@@ -563,8 +572,13 @@ def main(calib_config:Dict, plot:bool=False, publish:bool=True, save:bool=True):
 
     # Save results transformation
     if save:
-        filename = "calibration_cam_%i.yaml" % cam_id  
-        with open(filename, 'w') as stream:
+        save_path = calib_config.get("save_path")
+        if os.path.exists(save_path):
+            file_name = os.path.join(save_path, "calibration_cam_%i.yaml" % cam_id)
+        else:
+            file_name = "calibration_cam_%i.yaml" % cam_id  
+        
+        with open(file_name, 'w') as stream:
                 data_dict = {"quaternion": quat, "t_vec": trans}
                 yaml.dump(data_dict, stream)
 
@@ -572,7 +586,7 @@ def main(calib_config:Dict, plot:bool=False, publish:bool=True, save:bool=True):
     if publish:
         rate = rospy.Rate(10)
         while not rospy.is_shutdown():
-            calib.br.sendTransform((trans[0], trans[1], trans[2]), (quat[1], quat[2], quat[3], quat[0]), rospy.Time.now(), "cam_" + str(cam_id) + cam_base, "panda_link0")
+            calib.br.sendTransform((trans[0], trans[1], trans[2]), (quat[1], quat[2], quat[3], quat[0]), rospy.Time.now(), cam_base, robot_base)
             
 
 if __name__ == '__main__':
@@ -580,7 +594,7 @@ if __name__ == '__main__':
         with open('calibration_config.yaml') as f:
             calib_config = yaml.load(f, Loader=SafeLoader)
 
-        main(calib_config, plot=False, publish=True, save=True)
+        main(calib_config, plot=calib_config.get("plot"), publish=calib_config.get("publish"), save=calib_config.get("save"))
     except Exception as e:
         print(e)
     finally:
