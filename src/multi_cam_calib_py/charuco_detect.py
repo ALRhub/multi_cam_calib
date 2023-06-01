@@ -23,23 +23,24 @@ class CharucoCalibration:
         self.target_frame = None
         self.calibrated = False
         
-    """ Internal ChAruco Calibration
-    param image: rgb image
-    param cam_mtx: current camera matrix
-    param distance_params: current distance parameters
-
-    returns:
-        calibrated: True if calibration successful
-        ret: final reprojection error
-        cam_mtx: new camera matrix
-        distance_params: new distance parameters
-        rvec: list of rotation vectors between camera and ChAruco board
-        tvec: list of translation vectors between camera and ChAruco board
-        corner_list: list of identified corner positions
-        id_list: list of identified marker ids
-
-    """
+    
     def charuco_calibration(self,images, cam_mtx, distance_params):
+        """ Internal ChAruco Calibration
+        param image: rgb image
+        param cam_mtx: current camera matrix
+        param distance_params: current distance parameters
+
+        returns:
+            calibrated: True if calibration successful
+            ret: final reprojection error
+            cam_mtx: new camera matrix
+            distance_params: new distance parameters
+            rvec: list of rotation vectors between camera and ChAruco board
+            tvec: list of translation vectors between camera and ChAruco board
+            corner_list: list of identified corner positions
+            id_list: list of identified marker ids
+
+        """
         self.calibrated = False
         rospy.loginfo("started calibration")
         corners_list,id_list = [],[]
@@ -68,17 +69,18 @@ class CharucoCalibration:
 
 
 
-    """ External ChAruco Calibration
-    param image: rgb image
-    param cam_mtx: current camera matrix
-    param distance_params: current distance parameters
 
-    returns:
-        target_frame: image with drawn axis of detected ChAruco board
-        rvec: list of rotation vectors between camera and ChAruco board
-        tvec: list of translation vectors between camera and ChAruco board
-    """
     def charuco_calibration_ext(self, image, cam_mtx, distance_params):
+        """ External ChAruco Calibration
+        param image: rgb image
+        param cam_mtx: current camera matrix
+        param distance_params: current distance parameters
+
+        returns:
+            target_frame: image with drawn axis of detected ChAruco board
+            rvec: list of rotation vectors between camera and ChAruco board
+            tvec: list of translation vectors between camera and ChAruco board
+        """
         self.cam_mtx = cam_mtx
         self.distance_params = distance_params
         image_gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)

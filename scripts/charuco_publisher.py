@@ -38,8 +38,10 @@ class CharucoDetector:
         self.br = CvBridge()
         self.tb = tf.TransformBroadcaster()
 
-    # Publishes calculated calibration to specified ROS topic
     def publish_calibration(self, params):
+        """ Publishes calculated calibration to specified ROS topic
+            Getting calibration parameters to publish
+        """
         calib_data = Calib()
         calib_data.mtx = params[0].flatten().tolist()
         calib_data.dist = params[1].flatten().tolist()
@@ -53,13 +55,17 @@ class CharucoDetector:
         tvec_tuple = (params[3][0],params[3][1],params[3][2])
         self.tb.sendTransform(tvec_tuple,rvec_tuple, rospy.Time.now(), self.cam_name +"/charuco", self.cam_name + self.charuco_link_frame)
 
-    # Returns camera parameters from ROS topic .../camera_info
     def get_cam_params(self, data):
+        """ Setting camera parameters from a ROS topic
+            Getting data from camera_info topic
+        """
         self.cam_mtx = np.array(data.K).reshape((3,3))
         self.dst_params = np.array(data.D)
 
-    # Main callback method when new message is recieved
     def callback(self, data):
+        """ Main callback method when new message is recieved
+            Getting the data from subscribed topic
+        """
         current_frame = self.br.imgmsg_to_cv2(data)
         bgr_frame = cv2.cvtColor(current_frame, cv2.COLOR_BGRA2BGR)
 
@@ -94,8 +100,10 @@ class CharucoDetector:
                 undst = cv2.undistort(bgr_frame, self.cam_mtx, self.dst_params, None, cam_mtx_new)
                 bgr_frame = undst
 
-    # Method for receiving messages
     def receive_message(self):
+        """
+            Method for receiving messages from subscribed topic
+        """
         self.listener = tf.TransformListener()
         rospy.Subscriber(self.cam_info, CameraInfo, self.get_cam_params)
         rospy.Subscriber(self.sub_name, Image, self.callback)
