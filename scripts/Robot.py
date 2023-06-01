@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import rospy
+import sys
 import moveit_commander
 
 
