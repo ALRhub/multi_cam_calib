@@ -39,9 +39,9 @@ from multi_cam_calib.scripts.Robot import Robot
 # Main method of calibration process
 def main(calib_config:Dict, plot:bool=False, publish:bool=True, save:bool=True):
 
-    if len(sys.argv) < 2:
-        print("DID NOT ENTER A CAMERA ID. Syntax: \"python optimize.py <camera_id>\"")
-        return
+    # if len(sys.argv) < 2:
+    #     print("DID NOT ENTER A CAMERA ID. Syntax: \"python optimize.py <camera_id>\"")
+    #     return
     
     cam_config = calib_config.get("camera")
     robot_config = calib_config.get("robot")
@@ -49,9 +49,9 @@ def main(calib_config:Dict, plot:bool=False, publish:bool=True, save:bool=True):
     cam_id = cam_config.get("cam_id") #int(sys.argv[1])
     robot_base = robot_config.get("base_frame")
 
-    if len(sys.argv) == 3:
+    if len(sys.argv) == 2:
 
-        in_filename = sys.argv[2]
+        in_filename = sys.argv[1]
         print("Loading files from %s" % in_filename)
 
         rospy.init_node('calib', anonymous=True)
