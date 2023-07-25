@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from typing import Dict
+
 import os
 import matplotlib
 matplotlib.use("TkAgg")
@@ -19,9 +19,8 @@ from transforms3d.affines import compose, decompose
 from transforms3d.euler import mat2euler
 import cv2
 from sklearn.model_selection import train_test_split
-from multi_cam_calib.scripts.Calibration import Calibration
-from multi_cam_calib.scripts.Robot import Robot
-
+from Calibration import Calibration
+from Robot import Robot
 
 # ####### LOG:
 # - fixing planning frame panda_hand/panda_ee confict
@@ -37,7 +36,7 @@ from multi_cam_calib.scripts.Robot import Robot
 
 
 # Main method of calibration process
-def main(calib_config:Dict, plot:bool=False, publish:bool=True, save:bool=True):
+def main(calib_config, plot=False, publish=True, save=True):
 
     # if len(sys.argv) < 2:
     #     print("DID NOT ENTER A CAMERA ID. Syntax: \"python optimize.py <camera_id>\"")
@@ -45,19 +44,20 @@ def main(calib_config:Dict, plot:bool=False, publish:bool=True, save:bool=True):
     
     cam_config = calib_config.get("camera")
     robot_config = calib_config.get("robot")
+    print(robot_config)
     cam_base = cam_config.get("base_frame")
     cam_id = cam_config.get("cam_id") #int(sys.argv[1])
     robot_base = robot_config.get("base_frame")
 
-    if len(sys.argv) == 2:
-
-        in_filename = sys.argv[1]
+    if len(sys.argv) == 3:
+        in_filename = sys.argv[2]
         print("Loading files from %s" % in_filename)
 
         rospy.init_node('calib', anonymous=True)
+        
         calib = Calibration(cam_id, cam_base, calib_config, load_from_file=True)
         calib.load_yaml(in_filename)
-
+        
     else:
         rospy.init_node('test', anonymous=True)
         robot = Robot(robot_config)
@@ -94,6 +94,7 @@ def main(calib_config:Dict, plot:bool=False, publish:bool=True, save:bool=True):
     print("cma_es : 6")
     print("cma_es_direct : 7")
     print("cma_es_fulltf : 8")
+
     
     choice = raw_input("Please enter desired solver ID:")
     chosen_calibration = int(choice)

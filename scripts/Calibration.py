@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 
-from typing import Dict
 import os
 import sys
 import matplotlib
@@ -102,7 +101,7 @@ class Calibration():
 
 
     # 
-    def dynamicprint(self, to_print):
+    def dynamic_print(self, to_print):
         """ Interactive print method
             Getting string to print
         """

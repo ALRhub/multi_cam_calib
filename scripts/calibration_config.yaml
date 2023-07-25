@@ -7,9 +7,9 @@ charuco:
   translation_tcp2board: [-0.082, 0.029, 0.2725]
   rotation_tcp2board: [0.7071068, 0.7071068, 0.0, 0.0]
 camera:
-  cam_id: 1
-  base_frame: "cam1/camera_base"
-  board_frame: "cam_1/calib_board_small"
+  cam_id: 4
+  base_frame: "cam_4/camera_base"
+  board_frame: "cam_4/charuco"
 robot:
   base_frame: "panda_link0"
   tcp_frame: "panda_hand"

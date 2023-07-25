@@ -19,8 +19,9 @@ from transforms3d.affines import compose, decompose
 from transforms3d.euler import mat2euler
 import cv2
 from sklearn.model_selection import train_test_split
-from multi_cam_calib.scripts.Calibration import Calibration
-from multi_cam_calib.scripts.Robot import Robot
+from Calibration import Calibration
+from Robot import Robot
+
 
 
 # ####### LOG:

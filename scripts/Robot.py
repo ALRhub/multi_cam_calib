@@ -10,6 +10,7 @@ class Robot():
     def __init__(self, robot_config):
         self.robot_config = robot_config
         print("============ Initialising...")
+        print(sys.argv)
         moveit_commander.roscpp_initialize(sys.argv)
         self.commander = moveit_commander.RobotCommander()
         self.scene = moveit_commander.PlanningSceneInterface()
