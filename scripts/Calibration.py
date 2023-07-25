@@ -43,7 +43,7 @@ class Calibration():
 
         if not load_from_file:
             self.listener = tf.TransformListener()
-            self.br = tf.TransformBroadcaster()
+        self.br = tf.TransformBroadcaster()
 
         self.cam_id = cam_id
         self.cam_base_frame = cam_base_frame
