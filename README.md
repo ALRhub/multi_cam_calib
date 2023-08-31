@@ -1,10 +1,6 @@
 # multi_cam_calib
-
-![Screenshot from 2022-05-25 12-51-43](https://user-images.githubusercontent.com/12738633/170248964-51aaea89-ebb4-4aac-878b-bb27d9992016.png)
-
-(checkout branch "comparing_all")
-
-### Baseline:
+![Screenshot from 2022-05-25 12-51-43](https://user-images.githubusercontent.com/12738633/170248789-c41764b2-6b11-41c0-a7d8-fbe5ed10a260.png)
+### Baseline Operations:
 
 - Mount ChArUco board on robot.
 - Run `source ./catkin_ws/devel/setup.bash` on AR PC.
@@ -13,7 +9,7 @@
     (Make sure launch file is configured for the correct camera!)
     
 - Run source `ws_moveit/devel/setup.sh` on Robot PC.
-- Run `roslaunch panda_moveit_config panda_control_moveit_rviz.launch load_gripper:=true robot_ip:=172.16.0.2` on Robot PC.
+- Run `roslaunch panda_moveit_config franka_control.launch load_gripper:=true robot_ip:=172.16.0.2` on Robot PC.
 
 ### Record Poses:
 
@@ -22,7 +18,14 @@
 - After recording your desired poses, save them to a file.
 
 ### Calibrate to Base:
+- Define calibration configuration inside a yaml file (e.g. 'calibration_config.yaml').
+- Set robot to **blue** mode and run `rosrun multi_cam_calib execute_calibration.py calibration_config.yaml`.
+- Enter the filename of the saved joint positions.
+- Enter ID of desired calibration method.
+- After the calibration is complete, a calibration file with the calculated translation vector and quaternion will be saved in `ws_moveit/`.
 
-- Set robot to **blue** mode and run `rosrun multi_cam_calib optimize.py <cam_id>`
+### Calibration Benchmarking:
+- Define calibration configuration inside a yaml file (e.g. 'calibration_config.yaml').
+- Set robot to **blue** mode and run `rosrun multi_cam_calib calibration_benchmark.py calibration_config.yaml`.
 - Enter the filename of the saved joint positions.
 - After the calibration is complete, a calibration file with the calculated translation vector and quaternion will be saved in `ws_moveit/`.

@@ -1,0 +1,15 @@
+<launch>
+    <node name="img_sub_cam_1" pkg="multi_cam_calib" type="marker_calib.py" output="screen" >
+        <param name="node_name" type="str" value="kinect_1_sub_py" />
+        <param name="cam_name" type="str" value="cam_1" />
+        <param name="mode_name" type="str" value="/rgb" />
+        <param name="calibrated" type="bool" value="False" />
+        <param name="sub_name" type="str" value="/cam_1/rgb/image_rect_color" />
+        <param name="ir_sub_name" type="str" value="/cam_1/ir/image_raw" />
+        <param name="depth_sub_name" type="str" value="/cam_1/depth/image_raw" />
+        <param name="cam_info" type="str" value="/cam_1/ir/camera_info" />
+        <param name="cam_info_depth" type="str" value="/cam_1/depth/camera_info" />
+        <param name="pub_name" type="str" value="/cam_1/rgb/image_rect_color/charuco" />
+        <param name="trans_frame_name" type="str" value="charuco" />
+    </node>
+</launch>

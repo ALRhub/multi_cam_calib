@@ -1,0 +1,16 @@
+<launch>
+    <node name="charuco_cam_3" pkg="multi_cam_calib" type="charuco_publisher.py" output="screen" >
+        <param name="node_name" type="str" value="kinect_3_sub_py" />
+        <param name="cam_name" type="str" value="cam_3" />
+        <param name="mode_name" type="str" value="/rgb" />
+        <param name="calibrated" type="bool" value="True" />
+        <param name="sub_name" type="str" value="/cam_3/rgb/image_rect_color" />
+        <param name="ir_sub_name" type="str" value="/cam_3/ir/image_raw" />
+        <param name="depth_sub_name" type="str" value="/cam_3/depth/image_raw" />
+        <param name="cam_info" type="str" value="/cam_3/rgb/camera_info" />
+        <param name="pub_name" type="str" value="/cam_3/rgb/image_rect_color/charuco" />
+        <param name="target_frame_name" type="str" value="charuco" />
+        <param name="base_frame_name" type="str" value="/camera_base" />
+        <param name="charuco_link_frame_name" type="str" value="/rgb_camera_link" />
+    </node> 
+</launch>

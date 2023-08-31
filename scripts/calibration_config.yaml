@@ -1,0 +1,24 @@
+---
+save_path: /home/alr_admin/catkin_ws
+plot: False
+publish: True
+save: True
+charuco:
+  translation_tcp2board: [-0.082, 0.029, 0.2725]
+  rotation_tcp2board: [0.7071068, 0.7071068, 0.0, 0.0]
+camera:
+  cam_id: 4
+  base_frame: "cam_4/camera_base"
+  board_frame: "cam_4/charuco"
+robot:
+  base_frame: "panda_link0"
+  tcp_frame: "panda_hand"
+  move_group_commander: "panda_arm"
+  planer_id: "FMTkConfigDefault"
+  velocity_scaling_factor: 0.15
+  max_acceleration_scaling_factor: 0.15
+  num_planning_attempts: 10
+  goal_position_tolerance: 0.005
+  goal_orientation_tolerance: 0.1
+  planning_time: 10
+  allow_replanning: True
