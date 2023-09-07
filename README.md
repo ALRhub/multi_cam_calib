@@ -34,7 +34,7 @@ The pictures below show how the board is mounted on the robot:
 ## Record Poses:
 - Set robot to interactive mode (**white mode**) and run `rosrun multi_cam_calib record_poses.py` on Robot PC.
 - Move the robot to different poses visible to the camera you want to calibrate. Make sure the board can be detected at each pose!
-- After recording your desired poses, save them to a file.
+- After recording your desired poses, save them to a yaml file.
 
 ## Calibrate to Base:
 ### Execute calibration for a specific method
@@ -42,14 +42,14 @@ The pictures below show how the board is mounted on the robot:
 - Set Panda robot to execution mode (**blue mode**) and run `rosrun multi_cam_calib execute_calibration.py calibration_config.yaml`.
 - Enter the filename of the saved joint positions.
 - Enter the ID of the desired calibration method.
-- After the calibration, a calibration file with the calculated translation vector and quaternion will be saved in your current directory.
+- After the calibration procedure, a calibration file containing the calculated translation vector and quaternion can be saved in your current directory.
 
 ## Calibration Benchmarking:
 ### Execute calibration for all available method
 - Define calibration configuration inside a yaml file (e.g. 'calibration_config.yaml').
 - Set Panda robot to **blue** mode and run `rosrun multi_cam_calib calibration_benchmark.py calibration_config.yaml`.
 - Enter the filename of the saved joint positions.
-- After the calibration, a calibration file with the calculated translation vector and quaternion can be saved in your current directory.
+- After the calibration procedure, a calibration file containing the calculated translation vector and quaternion for a desired calibration method can be saved in your current directory.
 
 ## Result:
 After executing the script, the resulting translation and rotation errors are printed on the terminal. The transformations from the camera to the robot base are published to the TF tree. The frames can be visualized in RViz:
