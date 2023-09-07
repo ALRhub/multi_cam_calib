@@ -2,7 +2,7 @@
 ![Screenshot from 2022-05-25 12-51-43](https://user-images.githubusercontent.com/12738633/170248789-c41764b2-6b11-41c0-a7d8-fbe5ed10a260.png)
 ## Requirements and Basic Information:
 
-This project requires ROS (noetic), OpenCV, and MoveIt! to work. Furthermore, for this project to run, you need a ChAruco detection script publishing the ChAruco frame relative to the camera base. A usable script is provided in this repo, but you can also use your solution.
+This project requires ROS (noetic), OpenCV, and MoveIt! to work. A list of required Python packages is provided at the bottom of this file. Furthermore, for this project to run, you need a ChAruco detection script publishing the ChAruco frame relative to the camera base. A usable script is provided in this repo, but you can also use your solution.
 The calibration procedure has been tested with the Franka Emika Panda robot at the ALR Lab. We use two PCs, one for detecting the ChAruco board (AR PC) and one for controlling the robot (Robot PC).
 
 The ChAruco board used during testing is printed on an aluminum composite panel and mounted with two screws on the TCP.
@@ -58,3 +58,13 @@ After executing the script, the resulting translation and rotation errors are pr
 Besides the quantitative results printed on the terminal, the qualitative result can be visualized by adding a point cloud (if available) in RViz:
 ![pcl_calib](https://github.com/ALRhub/multi_cam_calib/assets/12738633/f9407854-ca61-462e-8710-371951f72cc1)
 
+## Requirements:
+- ROS
+- OpenCV
+- moveit!
+- cma
+- transforms3d
+- Scikit-learn
+- YAML
+- Numpy
+- Matplotlib
