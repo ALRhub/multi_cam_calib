@@ -1,9 +1,11 @@
 # multi_cam_calib
 ![Screenshot from 2022-05-25 12-51-43](https://user-images.githubusercontent.com/12738633/170248789-c41764b2-6b11-41c0-a7d8-fbe5ed10a260.png)
-### Baseline Operations:
+### Requirements and Basic Information:
 
 This project requires ROS (noetic), OpenCV, and MoveIt! in order to work.
 The calibration procedure has been tested with the Franka Emika Panda robot at the ALR Lab.
+
+
 
 ### Baseline:
 - Define a launch file containing parameters for camera and ChAruco calibration (e.g. charuco_calibration_\<camera\>.launch)
