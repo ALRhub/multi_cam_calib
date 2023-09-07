@@ -8,7 +8,7 @@ The calibration procedure has been tested with the Franka Emika Panda robot at t
 The ChAruco board used during testing is printed on an aluminum composite panel and mounted with two screws on the TCP.
 ![board_top](https://github.com/ALRhub/multi_cam_calib/assets/12738633/e6781a8b-f83a-4534-af64-8e46d07c0261)
 
-After mounting the board on the robot, one has to calculate the transformation from the TCP to the lower left corner of the board. The configuration YAML file requires the translation vector and quaternion (see scripts/calib_config.yaml).
+After mounting the board on the robot, one has to calculate the transformation from the TCP to the lower left corner of the board by hand. The configuration YAML file requires the translation vector and quaternion (see scripts/calib_config.yaml).
 
 The pictures below show how the board is mounted on the robot:
 
